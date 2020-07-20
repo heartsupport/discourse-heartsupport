@@ -27,7 +27,7 @@ after_initialize do
 
 	  if(replies.length >= 1 && reply_word_count >= 500)
             topic.tags.delete needs_support_tag
-            topic.tags << supported_tag
+            # topic.tags << supported_tag
 	    supported = true
 	    newly_supported = true
           end
