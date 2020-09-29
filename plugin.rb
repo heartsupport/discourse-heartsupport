@@ -9,7 +9,7 @@ after_initialize do
     after_create :check_for_support
 
     def check_for_support
-      needs_support_tag = Tag.find_or_create_by(name: 'Needs Support')
+      needs_support_tag = Tag.find_or_create_by(name: 'Needs-Support')
       supported_tag = Tag.find_or_create_by(name: 'Supported')
 
       if is_first_post?
@@ -25,7 +25,7 @@ after_initialize do
 	  replies = topic.posts.where('post_number > 1')
           reply_word_count = replies.sum(:word_count)
 
-	  if(replies.length >= 1 && reply_word_count >= 500)
+	  if(replies.length >= 1 && reply_word_count >= 300)
             topic.tags.delete needs_support_tag
             # topic.tags << supported_tag
 	    supported = true
