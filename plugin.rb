@@ -1,6 +1,6 @@
 # name: discourse-supported
 # about: Mark topics as supported when they've reached a certain threshold
-# version: 0.1.1
+# version: 0.1.2
 # authors: Thomas Hart II
 # url: https://github.com/myrridin/discourse-supported
 
