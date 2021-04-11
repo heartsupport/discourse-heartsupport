@@ -34,7 +34,7 @@ after_initialize do
 	end
 
 	Rails.logger.info("POSTING TO HSAPPS")
-	uri = URI('http://hsapps.thomashart.me/twilio/discourse_webhook')
+	uri = URI('https://porter.heartsupport.com/twilio/discourse_webhook')
 	res = Net::HTTP.post_form(uri, topic_id: topic_id, supported: supported, newly_supported: newly_supported, body: cooked, username: user.username)
       end
 
