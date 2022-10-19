@@ -35,7 +35,7 @@ after_initialize do
             newly_supported = true
 
             # make an API call to mark supplier topic as supported
-            res = Net::HTTP.post_form(supplier_url, topic_id: topic_id, supported: true, username: user.username, category: topic.category)
+            res = Net::HTTP.post_form(supplier_url, topic_id: topic_id, supported: true, username: user.username, category: topic.category_id)
           end
         end
 
