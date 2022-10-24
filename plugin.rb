@@ -19,7 +19,7 @@ after_initialize do
           # If it's the first post, add the needs support tag
           topic.tags << needs_support_tag
           # make an API call to create a supplier topic
-          res = Net::HTTP.post_form(supplier_url, topic_id: topic_id, supported: false, username: user.username, category_id: topic.category_id)
+          res = Net::HTTP.post_form(supplier_url, topic_id: topic_id, supported: false, username: user.username, category_id: topic.category_id, closed: topic.closed)
         else
           supported = !topic.tags.include?(needs_support_tag)
           newly_supported = false
@@ -37,7 +37,7 @@ after_initialize do
               newly_supported = true
 
               # make an API call to mark supplier topic as supported
-              res = Net::HTTP.post_form(supplier_url, topic_id: topic_id, supported: true, username: user.username, category_id: topic.category_id)
+              res = Net::HTTP.post_form(supplier_url, topic_id: topic_id, supported: true, username: user.username, category_id: topic.category_id, closed: topic.closed)
             end
           end
 
