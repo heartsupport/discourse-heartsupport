@@ -12,9 +12,9 @@ after_initialize do
       needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
       supported_tag = Tag.find_or_create_by(name: "Supported")
       supplier_url = URI("https://porter.heartsupport.com/webhooks/supplier")
-      supported_categories = ["66", "67", "87"]
+      supported_categories = [67, 77, 85, 87, 88, 89]
 
-      unless supported_categories.include?(topic.category_id)
+      if supported_categories.include?(topic.category_id)
         if is_first_post?
           # If it's the first post, add the needs support tag
           topic.tags << needs_support_tag
