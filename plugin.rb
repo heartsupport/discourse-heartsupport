@@ -9,8 +9,8 @@ after_initialize do
     after_create :check_for_support
     after_create :check_for_support_response
 
-    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89]
-    ASK_CATEGORIES = [67, 89]
+    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 4]
+    ASK_CATEGORIES = [67, 89, 4]
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
 
@@ -45,7 +45,7 @@ after_initialize do
               topic.custom_fields["supported"] = true
               supported = true
               newly_supported = true
-              topic.tags << supported_tag unless ASK_CATEGORIES.include?(topic.category_id)
+              topic.tags << supported_tag if ASK_CATEGORIES.include?(topic.category_id)
             end
           end
 
@@ -107,17 +107,17 @@ after_initialize do
           Post.create!(
             topic_id: topic.id,
             user_id: system_user.id,
-            raw: "Hi #{topic.user.username}, what helped?",
+            raw: "Hi #{ref_topic.user.username}, what helped?",
           )
 
           # send a DM thanking repliers
-          repliers = topic.posts.map(&:user).uniq - [topic.user]
+          repliers = ref_topic.posts.map(&:user).uniq - [ref_topic.user]
           dm_params = {
             title: "You helped a user!",
-            raw: "A user you supported named #{ref_topic.user.username} said that you replies " \
+            raw: "A user you supported named #{ref_topic.user.username} said that your replies " \
             "helped them feel cared for. Thank you so much for offering support " \
             "to them. It's making a real difference. If you want to check out the " \
-            "topic you can find it here: #{topic.url}",
+            "topic you can find it here: #{ref_topic.url}",
             archetype: Archetype.private_message,
             target_usernames: repliers.map(&:username),
           }
@@ -140,7 +140,7 @@ after_initialize do
           Post.create!(
             topic_id: topic.id,
             user_id: system_user.id,
-            raw: "Hi #{topic.user.username}, I'm sorry to hear that you didn't feel supported. What do you need?",
+            raw: "Hi #{ref_topic.user.username}, I'm sorry to hear that you didn't feel supported. What do you need?",
           )
         else
           # if staff escalation is true and supported is false then post a whisper
@@ -160,7 +160,7 @@ after_initialize do
 
   # add job that runs everyday to ask users if they feel supported
   class ::Jobs::FollowUpSupport < Jobs::Scheduled
-    ASK_CATEGORIES = [67, 89]
+    ASK_CATEGORIES = [67, 89, 4]
     ASK_USER_LIMIT = 300
     every 1.day
 
@@ -169,7 +169,8 @@ after_initialize do
       supported_tag = Tag.find_or_create_by(name: "Supported")
       # query all all topics created > 24 hours, does not have a supported tag, and don't have an asked user tag
       topics = Topic
-        .where("topics.created_at < ?", 24.hours.ago)
+        .where("topics.created_at < ? AND topics.created_at > ?", 24.hours.ago, 14.days.ago)
+        .where("topics.archetype = ?", "regular")
         .where("topics.posts_count > ?", 1)
         .where("topics.word_count >= ?", ASK_USER_LIMIT)
         .where("topics.category_id IN (?)", ASK_CATEGORIES)
@@ -177,7 +178,7 @@ after_initialize do
         .where("topic_tags.tag_id != ?", supported_tag.id)
 
       topics.each do |topic|
-        next if topic.custom_fields["asked_user"]
+        # next if topic.custom_fields["asked_user"] == "true"
         # send a message to the user asking if they feel supported
         require_dependency "post_creator"
         system_user = User.find_by(username: "system")
@@ -192,7 +193,7 @@ after_initialize do
           custom_fields: { ref_topic_id: topic.id },
         }
         PostCreator.create!(system_user, dm_params)
-        topic.custom_fields["asked_user"] = true
+        topic.custom_fields["asked_user"] = "true"
         topic.save!
       end
     end
