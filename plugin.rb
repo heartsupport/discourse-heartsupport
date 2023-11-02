@@ -176,9 +176,11 @@ after_initialize do
         .where("topics.category_id IN (?)", ASK_CATEGORIES)
         .joins("INNER JOIN topic_tags ON topic_tags.topic_id = topics.id")
         .where("topic_tags.tag_id != ?", supported_tag.id)
+        .joins("INNER JOIN topic_custom_fields ON topic_custom_fields.topic_id = topics.id")
+        .where("topic_custom_fields.name = ?", "asked_user")
 
       topics.each do |topic|
-        # next if topic.custom_fields["asked_user"] == "true"
+        next if topic.custom_fields["asked_user"].present?
         # send a message to the user asking if they feel supported
         require_dependency "post_creator"
         system_user = User.find_by(username: "system")
