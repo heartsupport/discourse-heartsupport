@@ -9,8 +9,8 @@ after_initialize do
     after_create :check_for_support
     after_create :check_for_support_response
 
-    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 4]
-    ASK_CATEGORIES = [67, 89, 4]
+    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89]
+    ASK_CATEGORIES = [67, 89]
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
 
@@ -160,7 +160,7 @@ after_initialize do
 
   # add job that runs everyday to ask users if they feel supported
   class ::Jobs::FollowUpSupport < Jobs::Scheduled
-    ASK_CATEGORIES = [67, 89, 4]
+    ASK_CATEGORIES = [67, 89]
     ASK_USER_LIMIT = 300
     every 1.day
 
