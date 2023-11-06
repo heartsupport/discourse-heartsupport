@@ -9,8 +9,8 @@ after_initialize do
     after_create :check_for_support
     after_create :check_for_support_response
 
-    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89]
-    ASK_CATEGORIES = [67, 89]
+    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 4]
+    ASK_CATEGORIES = [67, 89, 4]
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
 
@@ -92,12 +92,14 @@ after_initialize do
             supported_tag = Tag.find_or_create_by(name: "Supported")
             staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
             asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
+            user_answered_tag = Tag.find_or_create_by(name: "User-Answered")
 
             ref_topic.tags.delete needs_support_tag
             ref_topic.tags.delete staff_escalation_tag
             ref_topic.tags.delete asked_user_tag
 
             ref_topic.tags << supported_tag unless ref_topic.tags.include?(supported_tag)
+            ref_topic.tags << user_answered_tag unless ref_topic.tags.include?(user_answered_tag)
             ref_topic.custom_fields["supported"] = true
             ref_topic.save!
           end
@@ -111,18 +113,7 @@ after_initialize do
           )
 
           # send a DM thanking repliers
-          repliers = ref_topic.posts.map(&:user).uniq - [ref_topic.user]
-          dm_params = {
-            title: "You helped a user!",
-            raw: "A user you supported named #{ref_topic.user.username} said that your replies " \
-            "helped them feel cared for. Thank you so much for offering support " \
-            "to them. It's making a real difference. If you want to check out the " \
-            "topic you can find it here: #{ref_topic.url}",
-            archetype: Archetype.private_message,
-            target_usernames: repliers.map(&:username),
-          }
-          # send DM to repliers
-          PostCreator.create!(system_user, dm_params)
+          thank_repliers(ref_topic)
         when "no"
           if ref_topic
             staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
@@ -156,17 +147,48 @@ after_initialize do
         end
       end
     end
+
+    def thank_repliers(topic)
+      # return if the topic is closed, unlisted, or archived
+      return if topic.closed || topic.archived || !topic.visible
+
+      # find system user
+      system_user = User.find_by(username: "system")
+
+      repliers = topic.posts
+        .where.not(user_id: [topic.user_id, system_user.id])
+        .where("notify_moderators_count = ?", 0)
+        .where("deleted_at IS NULL")
+        .map(&:user)
+        .pluck(:username)
+
+      repliers.each do |username|
+        dm_params = {
+          title: "You helped a user!",
+          raw: "A user you supported named #{topic.user.username} said that your replies " \
+          "helped them feel cared for. Thank you so much for offering support " \
+          "to them. It's making a real difference. If you want to check out the " \
+          "topic you can find it here: #{topic.url}",
+          archetype: Archetype.private_message,
+          target_usernames: [username],
+        }
+        # send DM to repliers
+        PostCreator.create!(system_user, dm_params)
+      end
+    end
   end
 
   # add job that runs everyday to ask users if they feel supported
   class ::Jobs::FollowUpSupport < Jobs::Scheduled
-    ASK_CATEGORIES = [67, 89]
+    ASK_CATEGORIES = [67, 89, 4]
     ASK_USER_LIMIT = 300
     every 1.day
 
     def execute(args)
-      # needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
       supported_tag = Tag.find_or_create_by(name: "Supported")
+      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
+      venting_no_reply_needed_tag = Tag.find_or_create_by(name: "Venting-No-Reply-Needed")
+
       # query all all topics created > 24 hours, does not have a supported tag, and don't have an asked user tag
       topics = Topic
         .where("topics.created_at < ? AND topics.created_at > ?", 24.hours.ago, 14.days.ago)
@@ -176,11 +198,14 @@ after_initialize do
         .where("topics.category_id IN (?)", ASK_CATEGORIES)
         .joins("INNER JOIN topic_tags ON topic_tags.topic_id = topics.id")
         .where("topic_tags.tag_id != ?", supported_tag.id)
+        .where("topic_tags.tag_id != ?", venting_no_reply_needed_tag.id)
         .joins("INNER JOIN topic_custom_fields ON topic_custom_fields.topic_id = topics.id")
         .where("topic_custom_fields.name = ?", "asked_user")
 
       topics.each do |topic|
         next if topic.custom_fields["asked_user"].present?
+        next if topic.tags.include?(asked_user_tag)
+        next if topic.tags.include?(supported_tag)
         # send a message to the user asking if they feel supported
         require_dependency "post_creator"
         system_user = User.find_by(username: "system")
@@ -196,6 +221,7 @@ after_initialize do
         }
         PostCreator.create!(system_user, dm_params)
         topic.custom_fields["asked_user"] = "true"
+        topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
         topic.save!
       end
     end
