@@ -1,7 +1,7 @@
 module HeartSupport
   module Support
-    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 4]
-    ASK_CATEGORIES = [67, 89, 4]
+    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89]
+    ASK_CATEGORIES = [67, 89]
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
 
@@ -11,8 +11,9 @@ module HeartSupport
       user = post.user
 
       needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-      supported_tag = Tag.find_or_create_by(name: "Supported")
+      # supported_tag = Tag.find_or_create_by(name: "Supported")
       supplier_url = URI("https://porter.heartsupport.com/webhooks/supplier")
+      # sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
 
       return unless SUPPORT_CATEGORIES.include?(category_id)
 
@@ -37,10 +38,11 @@ module HeartSupport
             if word_count >= SUPPORT_LIMIT
               # remove needs support tag
               topic.tags.delete needs_support_tag
-              topic.custom_fields["supported"] = true
-              supported = true
-              newly_supported = true
-              topic.tags << supported_tag if ASK_CATEGORIES.include?(topic.category_id)
+              # topic.custom_fields["supported"] = true
+              supported = false
+              newly_supported = false
+              # topic.tags << supported_tag if ASK_CATEGORIES.include?(topic.category_id)
+              # topic.tags << sufficient_words_tag unless topic.tags.include?(sufficient_words_tag)
             end
           end
 
@@ -51,9 +53,9 @@ module HeartSupport
         uri = URI("https://porter.heartsupport.com/twilio/discourse_webhook")
         Net::HTTP.post_form(
           uri,
-          topic_id: topic_id, supported: supported,
+          topic_id: topic.id, supported: supported,
           newly_supported: newly_supported,
-          body: cooked, username: user.username,
+          body: post.cooked, username: user.username,
         )
       end
 
@@ -64,7 +66,7 @@ module HeartSupport
       # make an API call to create a supplier topic
       Net::HTTP.post_form(
         supplier_url,
-        topic_id: topic_id,
+        topic_id: topic.id,
         supported: supported,
         username: user.username,
         category_id: topic.category_id,
@@ -80,7 +82,7 @@ module HeartSupport
       # check if private message response and text is YES or NO
 
       if topic.archetype == Archetype.private_message && topic.title == "Follow Up on Your Recent Post"
-        user_message = raw.downcase&.strip
+        user_message = post.raw.downcase&.strip
         ref_topic = Topic.find_by(id: topic.custom_fields["ref_topic_id"])
         case user_message
         when "yes"
