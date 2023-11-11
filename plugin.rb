@@ -87,7 +87,7 @@ after_initialize do
     ASK_CATEGORIES = [67, 89]
     ASK_USER_LIMIT = 300
 
-    every 1.day
+    every 6.hours
 
     def execute(args)
       supported_tag = Tag.find_or_create_by(name: "Supported")
