@@ -138,6 +138,13 @@ module HeartSupport
               raw: user_message,
             }
             PostCreator.create!(system_user, whisper_params)
+
+            # push this to porter
+            Net::HTTP.post_form(
+              URI("https://porter.heartsupport.com/webhooks/followup"),
+              topic_id: ref_topic.id,
+              message: user_message,
+            )
           end
         end
       end
