@@ -1,3 +1,0 @@
-inherit_from: ../.rubocop.yml
-Metrics/MethodLength:
-  Max: 1000

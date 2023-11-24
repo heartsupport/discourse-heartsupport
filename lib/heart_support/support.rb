@@ -1,6 +1,6 @@
 module HeartSupport
   module Support
-    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89]
+    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106]
     ASK_CATEGORIES = [67, 89]
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
@@ -11,15 +11,13 @@ module HeartSupport
       user = post.user
 
       needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-      # supported_tag = Tag.find_or_create_by(name: "Supported")
       supplier_url = URI("https://porter.heartsupport.com/webhooks/supplier")
-      # sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
 
       return unless SUPPORT_CATEGORIES.include?(category_id)
 
       if post.is_first_post?
         # If it's the first post, add the needs support tag
-        topic.tags << needs_support_tag
+        topic.tags << needs_support_tag unless topic.tags.include?(needs_support_tag)
         topic.custom_fields["needs_support"] = true
         topic.custom_fields["supported"] = false
         supported = false
@@ -38,11 +36,8 @@ module HeartSupport
             if word_count >= SUPPORT_LIMIT
               # remove needs support tag
               topic.tags.delete needs_support_tag
-              # topic.custom_fields["supported"] = true
               supported = false
               newly_supported = false
-              # topic.tags << supported_tag if ASK_CATEGORIES.include?(topic.category_id)
-              # topic.tags << sufficient_words_tag unless topic.tags.include?(sufficient_words_tag)
             end
           end
 
@@ -75,58 +70,72 @@ module HeartSupport
     end
 
     def self.check_response(post)
+      needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
+      supported_tag = Tag.find_or_create_by(name: "Supported")
+      staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
+      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
+      user_answered_yes_tag = Tag.find_or_create_by(name: "User-Answered-Yes")
+      user_answered_no_tag = Tag.find_or_create_by(name: "User-Answered-No")
+
       topic = post.topic
 
       # define the system user
       system_user = User.find_by(username: "system")
       # check if private message response and text is YES or NO
 
-      if topic.archetype == Archetype.private_message && topic.title == "Follow Up on Your Recent Post"
+      if topic.archetype == Archetype.private_message && topic.title == "Follow Up on Your Recent Post" && post.user_id != system_user.id
         user_message = post.raw.downcase&.strip
         ref_topic = Topic.find_by(id: topic.custom_fields["ref_topic_id"])
         case user_message
         when "yes"
           if ref_topic
-            needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-            supported_tag = Tag.find_or_create_by(name: "Supported")
-            staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
-            asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
-            user_answered_tag = Tag.find_or_create_by(name: "User-Answered")
-
             ref_topic.tags.delete needs_support_tag
             ref_topic.tags.delete staff_escalation_tag
             ref_topic.tags.delete asked_user_tag
 
             ref_topic.tags << supported_tag unless ref_topic.tags.include?(supported_tag)
-            ref_topic.tags << user_answered_tag unless ref_topic.tags.include?(user_answered_tag)
+            ref_topic.tags << user_answered_yes_tag unless ref_topic.tags.include?(user_answered_yes_tag)
             ref_topic.custom_fields["supported"] = true
             ref_topic.save!
           end
 
           # send reply to user
+          response = "These replies helped you (select all that apply): \n" \
+          "1. Feel more optimistic \n" \
+          "2. Cope with what you are dealing with \n" \
+          "3. Advocate for your needs \n" \
+          "4. Take another step for your mental health \n" \
+          "5. None of the above"
 
           Post.create!(
             topic_id: topic.id,
             user_id: system_user.id,
-            raw: "Hi #{ref_topic.user.username}, what helped?",
+            raw: response,
           )
 
           # send a DM thanking repliers
           thank_repliers(ref_topic)
         when "no"
           if ref_topic
-            staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
-            supported_tag = Tag.find_or_create_by(name: "Supported")
             ref_topic.tags.delete supported_tag
             ref_topic.tags << staff_escalation_tag unless ref_topic.tags.include?(staff_escalation_tag)
+            ref_topic.tags << user_answered_no_tag unless ref_topic.tags.include?(user_answered_no_tag)
             ref_topic.custom_fields["staff_escalation"] = true
             ref_topic.save!
           end
 
+          # send reply to user
+          response = "Thank you for sharing that with us. We'll get you more support. Which of the following most applies: \n" \
+          "1. Didn't respond fast enough \n" \
+          "2. Not enough replies \n" \
+          "3. People didn't quite understand me \n" \
+          "4. I didn't get the advice I needed \n" \
+          "5. I felt like no one cared"
+
           Post.create!(
             topic_id: topic.id,
             user_id: system_user.id,
-            raw: "Hi #{ref_topic.user.username}, I'm sorry to hear that you didn't feel supported. What do you need?",
+            raw: response,
           )
         else
           # if staff escalation is true and supported is false then post a whisper
@@ -142,8 +151,11 @@ module HeartSupport
             # push this to porter
             Net::HTTP.post_form(
               URI("https://porter.heartsupport.com/webhooks/followup"),
+              dm_id: topic.id,
               topic_id: ref_topic.id,
               message: user_message,
+              discourse_user_id: post.user_id,
+              response: ref_topic.tags.include?(user_answered_yes_tag) ? "yes" : "no",
             )
           end
         end
