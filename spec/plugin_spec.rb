@@ -30,6 +30,7 @@ RSpec.describe HeartSupport::Support, type: :model do
       let(:user) { Fabricate(:walter_white) }
       let(:topic) { Fabricate(:topic, category_id: 67, archetype: "regular") }
       let(:post) { Fabricate(:post, topic: topic) }
+      let(:non_op_user) { Fabricate(:user) }
 
       before do
         stub_supplier
@@ -38,13 +39,32 @@ RSpec.describe HeartSupport::Support, type: :model do
 
       it "does not add the needs support tag" do
         topic = Fabricate(:topic, category_id: 67, archetype: "regular", user: user)
-        post = Fabricate(:post, topic: topic, user: user)
-        Fabricate(:post, topic: topic, user: user)
+        first_post = Post.create!(user_id: user.id, raw: ("Hello ") * 30, topic_id: topic.id)
 
-        expect(topic.tags.include?(needs_support_tag)).to eq(true)
-        expect(post.is_first_post?).to eq(true)
+        Post.create!(user_id: non_op_user.id, raw: ("Hello ") * 30, topic_id: topic.id)
+
+        expect(topic.reload.tags.include?(needs_support_tag)).to eq(true)
+        expect(first_post.is_first_post?).to eq(true)
         expect(stub_supplier).to have_been_requested.times(2)
         expect(stub_hsapps).to have_been_requested.times(1)
+      end
+
+      it "removes the needs support tag > 500 words from Non-OP users" do
+        topic = Fabricate(:topic, category_id: 67, archetype: "regular", user: user)
+
+        Post.create!(user_id: user.id, raw: ("Hello ") * 300, topic_id: topic.id)
+        Post.create!(user_id: non_op_user.id, raw: ("Hello ") * 300, topic_id: topic.id)
+        Post.create!(user_id: non_op_user.id, raw: ("Hello ") * 300, topic_id: topic.id)
+        expect(topic.reload.tags.include?(needs_support_tag)).to eq(false)
+      end
+
+      it "does not remove the needs support tag < 500 words from Non-OP users" do
+        topic = Fabricate(:topic, category_id: 67, archetype: "regular", user: user)
+        Post.create!(user_id: user.id, raw: ("Hello ") * 300, topic_id: topic.id)
+        Post.create!(user_id: user.id, raw: ("Hello ") * 300, topic_id: topic.id)
+        Post.create!(user_id: non_op_user.id, raw: ("Hello ") * 300, topic_id: topic.id)
+
+        expect(topic.reload.tags.include?(needs_support_tag)).to eq(true)
       end
     end
   end

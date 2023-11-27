@@ -29,7 +29,7 @@ module HeartSupport
 
         unless supported
           # count reply word count
-          word_count = topic.posts.sum(:word_count)
+          word_count = topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
           reply_count = topic.posts_count - 1
 
           if reply_count >= 1
