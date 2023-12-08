@@ -30,9 +30,9 @@ module HeartSupport
         unless supported
           # count reply word count
           word_count = topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
-          reply_count = topic.posts_count - 1
+          reply_count = topic.posts.count
 
-          if reply_count >= 1
+          if reply_count > 1
             if word_count >= SUPPORT_LIMIT
               # remove needs support tag
               topic.tags.delete needs_support_tag
@@ -100,12 +100,15 @@ module HeartSupport
           end
 
           # send reply to user
-          response = "These replies helped you (select all that apply): \n" \
-          "1. Feel more optimistic \n" \
-          "2. Cope with what you are dealing with \n" \
-          "3. Advocate for your needs \n" \
-          "4. Take another step for your mental health \n" \
-          "5. None of the above"
+          # response = "These replies helped you (select all that apply): \n" \
+          # "1. Feel more optimistic \n" \
+          # "2. Cope with what you are dealing with \n" \
+          # "3. Advocate for your needs \n" \
+          # "4. Take another step for your mental health \n" \
+          # "5. None of the above"
+
+          response = "Thank you for your feedback! <a href='https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform' target='_blank'> Click on the form </a> and answer the one " \
+          "question because it will help us know specifically what helped."
 
           Post.create!(
             topic_id: topic.id,
@@ -125,13 +128,16 @@ module HeartSupport
           end
 
           # send reply to user
-          response = "Thank you for sharing that with us. We'll get you more support. Which of the following most applies: \n" \
-          "1. Didn't respond fast enough \n" \
-          "2. Not enough replies \n" \
-          "3. People didn't quite understand me \n" \
-          "4. I didn't get the advice I needed \n" \
-          "5. I felt like no one cared"
+          # response = "Thank you for sharing that with us. We'll get you more support. Which of the following most applies: \n" \
+          # "1. Didn't respond fast enough \n" \
+          # "2. Not enough replies \n" \
+          # "3. People didn't quite understand me \n" \
+          # "4. I didn't get the advice I needed \n" \
+          # "5. I felt like no one cared"
 
+          response = "Thank you for sharing that with us. We'll get you more support. " \
+          "<a href='https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform' target='_blank'>Click on the form</a> and answer the one question because it will help us know " \
+          "how we can improve."
           Post.create!(
             topic_id: topic.id,
             user_id: system_user.id,

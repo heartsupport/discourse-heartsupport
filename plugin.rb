@@ -95,7 +95,7 @@ after_initialize do
 
   # add FollowUpSupportJob
   class ::Jobs::FollowUpSupportJob < Jobs::Scheduled
-    ASK_CATEGORIES = [67, 89]
+    ASK_CATEGORIES = [67, 89, 4]
     ASK_USER_LIMIT = 300
 
     every 6.hours
