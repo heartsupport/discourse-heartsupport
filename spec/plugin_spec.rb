@@ -95,19 +95,28 @@ RSpec.describe HeartSupport::Support, type: :model do
     end
     context "when message from user" do
       context "when the user responds yes" do
+        let(:response) {
+          "Thank you for your feedback! <a href='https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform' target='_blank'> Click on the form </a> and answer the one " \
+          "question because it will help us know specifically what helped."
+        }
         it "responds with multiple choice" do
           expect { Post.create!(topic_id: pm_topic_id, user_id: user.id, raw: "Yes") }.to change { pm_topic.posts.count }.by(2)
           expect(stub).to_not have_been_requested
-          expect(pm_topic.posts.last.raw).to include("These replies helped you (select all that apply)")
+          expect(pm_topic.posts.last.raw).to include(response)
         end
       end
       context "when the user responds no" do
+        let(:response) {
+          "Thank you for sharing that with us. We'll get you more support. " \
+          "<a href='https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform' target='_blank'>Click on the form</a> and answer the one question because it will help us know " \
+          "how we can improve."
+        }
         it "responds with multiple choice" do
           expect {
             Post.create!(topic_id: pm_topic_id, user_id: user.id, raw: "No")
           }.to change { pm_topic.posts.count }.by(2)
           expect(stub).to_not have_been_requested
-          expect(pm_topic.posts.last.raw).to include("Thank you for sharing that with us. We'll get you more support. Which of the following most applies")
+          expect(pm_topic.posts.last.raw).to include(response)
           expect(topic.custom_fields["staff_escalation"]).to eq("t")
         end
       end
