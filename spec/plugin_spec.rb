@@ -199,18 +199,16 @@ RSpec.describe HeartSupport::Support, type: :model do
 
     context "Clean up topics after 14 days" do
       let(:topic_1) { Fabricate(:topic, last_posted_at: 14.days.ago.beginning_of_day, archetype: "regular") }
-      let(:topic_2) { Fabricate(:topic, last_posted_at: 14.days.ago, archetype: "regular") }
-      let(:topic_3) { Fabricate(:topic, last_posted_at: 14.days.ago, archetype: "regular") }
+      let(:topic_2) { Fabricate(:topic, last_posted_at: 14.days.ago, archetype: "regular", category_id: 106) }
+      let(:topic_3) { Fabricate(:topic, last_posted_at: 14.days.ago, archetype: "regular", category_id: 106) }
+      let(:supported_tag) {Tag.find_or_create_by(name: "Supported")}
+      let(:staff_escalation_tag) {Tag.find_or_create_by(name: "Staff-Escalation")}
+      let(:video_reply_tag) {Tag.find_or_create_by(name: "Video-Reply")}
+
 
       describe "#execute" do
-        it "assigns the closing tags correct ly" do
-          # needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-          supported_tag = Tag.find_or_create_by(name: "Supported")
-          # asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
-          staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
-          # sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
-          video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
-
+        it "assigns the closing tags correctly" do
+          
           # create posts with certain word length
           Fabricate(:post, topic: topic_1, user: Fabricate(:user))
           Fabricate(:post, topic: topic_1, user: Fabricate(:user))
@@ -226,6 +224,27 @@ RSpec.describe HeartSupport::Support, type: :model do
           expect(topic_1.reload.tags.include?(video_reply_tag)).to eq(true)
           expect(topic_2.reload.tags.include?(staff_escalation_tag)).to eq(true)
           expect(topic_3.reload.tags.include?(supported_tag)).to eq(true)
+        end
+
+        it "does not assign escalation tag to topics outside of the support category" do
+          topic_1.update!(category_id: 109)
+          ::Jobs::RemoveSupportTagJob.new.execute({})
+
+          expect(topic_1.reload.tags.include?(staff_escalation_tag)).to eq(false)
+        end
+
+        it "does not assign escalation tag to topics that are closed" do
+          topic_1.update!(category_id: 106, closed: true)
+          ::Jobs::RemoveSupportTagJob.new.execute({})
+
+          expect(topic_1.reload.tags.include?(staff_escalation_tag)).to eq(false)
+        end
+
+        it "does not assign escalation tag to topics that are unlisted" do
+          topic_1.update!(category_id: 106, visible: false)
+          ::Jobs::RemoveSupportTagJob.new.execute({})
+
+          expect(topic_1.reload.tags.include?(staff_escalation_tag)).to eq(false)
         end
       end
     end

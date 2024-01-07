@@ -33,6 +33,8 @@ after_initialize do
   class ::Jobs::RemoveSupportTagJob < Jobs::Scheduled
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
+    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106]
+
 
     every 1.day
 
@@ -71,7 +73,9 @@ after_initialize do
           topic.custom_fields["supported"] = true
           topic.tags << sufficient_words_tag unless topic.tags.include?(sufficient_words_tag)
         else
-          topic.tags << staff_escalation_tag unless topic.tags.include?(staff_escalation_tag)
+          if SUPPORT_CATEGORIES.include?(topic.category_id) && topic.visible && !topic.closed
+            topic.tags << staff_escalation_tag unless topic.tags.include?(staff_escalation_tag)
+          end
         end
 
         topic.save!
