@@ -32,7 +32,7 @@ module HeartSupport
           word_count = topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
           reply_count = topic.posts.count
 
-          if reply_count > 1
+          if reply_count >= 1
             if word_count >= SUPPORT_LIMIT
               # remove needs support tag
               topic.tags.delete needs_support_tag
