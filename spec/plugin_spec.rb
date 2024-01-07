@@ -96,8 +96,11 @@ RSpec.describe HeartSupport::Support, type: :model do
     context "when message from user" do
       context "when the user responds yes" do
         let(:response) {
-          "Thank you for your feedback! <a href='https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform' target='_blank'> Click on the form </a> and answer the one " \
-          "question because it will help us know specifically what helped."
+          "Thank you for your feedback! \n" \
+          "Click on the form and answer the one question because it will help us know specifically what helped: " \
+          "<a href='https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform' target='_blank'>
+          https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform 
+          </a> \n" 
         }
         it "responds with multiple choice" do
           expect { Post.create!(topic_id: pm_topic_id, user_id: user.id, raw: "Yes") }.to change { pm_topic.posts.count }.by(2)
@@ -107,8 +110,9 @@ RSpec.describe HeartSupport::Support, type: :model do
       end
       context "when the user responds no" do
         let(:response) {
-          "Thank you for sharing that with us. We'll get you more support. " \
-          "<a href='https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform' target='_blank'>Click on the form</a> and answer the one question because it will help us know " \
+          "Thank you for sharing that with us. We'll get you more support. \n" \
+          "Click on the form and answer the one question because it will help us know how we can improve: " \
+          "<a href='https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform' target='_blank'>https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform</a>" \
           "how we can improve."
         }
         it "responds with multiple choice" do
@@ -274,10 +278,6 @@ RSpec.describe HeartSupport::Support, type: :model do
           topic_6.custom_fields["asked_user"] = true
           topic_6.save!
           topic_4.tags << video_reply_tag
-          # Fabricate(:post, topic: topic_2, user: Fabricate(:user), raw: ("Hello ") * 200)
-          # Fabricate(:post, topic: topic_2, user: Fabricate(:user), raw: ("Hello ") * 200)
-          # Fabricate(:post, topic: topic_1, user: Fabricate(:user), raw: ("Hello ") * 200)
-          # Fabricate(:post, topic: topic_1, user: Fabricate(:user), raw: ("Hello ") * 200)
           Post.create!(user_id: Fabricate(:user).id, raw: ("Hello ") * 200, topic_id: topic_1.id)
           Post.create!(user_id: Fabricate(:user).id, raw: ("Hello ") * 200, topic_id: topic_1.id)
           Post.create!(user_id: Fabricate(:user).id, raw: ("Hello ") * 200, topic_id: topic_2.id)
@@ -285,9 +285,36 @@ RSpec.describe HeartSupport::Support, type: :model do
         end
 
         it "sends a follow up message to the user" do
-          expect { ::Jobs::FollowUpSupportJob.new.execute({}) }.to change { Post.count }.by(3)
+          expect { ::Jobs::FollowUpSupportJob.new.execute({}) }.to change { Post.count }.by(2)
         end
       end
+    end
+  end
+
+  context "Topic Tag Creation" do
+    let(:stub_supplier) { stub_request(:post, /https:\/\/porter.heartsupport.com\/webhooks\/supplier/).to_return(status: 200, body: "", headers: {}) }
+    let(:stub_hsapps) { stub_request(:post, /https:\/\/porter.heartsupport.com\/twilio\/discourse_webhook/).to_return(status: 200, body: "", headers: {}) }
+    let(:topic) { Fabricate(:topic, archetype: "regular", category_id: "67" ) }
+    let(:post) { Fabricate.build(:post, topic: topic, user: Fabricate(:user)) }
+    let(:supported_tag) { Tag.find_or_create_by(name: "Supported") }
+    let(:needs_support_tag) { Tag.find_or_create_by(name: "Needs-Support") }
+    let(:video_reply_tag) { Tag.find_or_create_by(name: "Video-Reply") }
+
+    before do
+      stub_supplier
+      stub_hsapps
+    end
+
+    it "removed needs support tag, adds supported tag when video reply tag is added" do
+      post.save!
+      expect(topic.tags.include?(needs_support_tag)).to eq(true)
+
+      topic.tags << video_reply_tag
+      topic.save!
+
+      expect(topic.tags.reload.include?(needs_support_tag)).to eq(false)
+      expect(topic.tags.reload.include?(supported_tag)).to eq(true)
+      expect(topic.tags.reload.include?(video_reply_tag)).to eq(true)
     end
   end
 end
