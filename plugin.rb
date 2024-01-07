@@ -129,11 +129,14 @@ after_initialize do
           require_dependency "post_creator"
           system_user = User.find_by(username: "system")
 
+          message_text = "Hi #{topic.user.username}, \n" \
+          "On this topic you posted, did you get the support you needed? \n " \
+          "#{topic.url} \n" \
+          "Reply to this message with YES if you feel supported, or NO if you don't."
+
           dm_params = {
             title: "Follow Up on Your Recent Post",
-            raw: "Hi #{topic.user.username}, On this topic you posted, did you get the support you needed? \n " \
-            "#{topic.url} \n" \
-            "Reply to this message with YES if you feel supported, or NO if you don't.",
+            raw: message_text,
             archetype: Archetype.private_message,
             target_usernames: [topic.user.username],
             custom_fields: { ref_topic_id: topic.id },
