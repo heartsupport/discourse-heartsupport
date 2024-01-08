@@ -102,8 +102,8 @@ module HeartSupport
           response = "Thank you for your feedback! \n" \
           "Click on the form and answer the one question because it will help us know specifically what helped: " \
           "<a href='https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform' target='_blank'>
-          https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform 
-          </a> \n" 
+          https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform
+          </a> \n"
 
           Post.create!(
             topic_id: topic.id,
@@ -126,7 +126,7 @@ module HeartSupport
           "Click on the form and answer the one question because it will help us know how we can improve: " \
           "<a href='https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform' target='_blank'>https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform</a>" \
           "how we can improve."
-          
+
           Post.create!(
             topic_id: topic.id,
             user_id: system_user.id,
@@ -183,6 +183,56 @@ module HeartSupport
         }
         # send DM to repliers
         PostCreator.create!(system_user, dm_params)
+      end
+    end
+
+
+  end
+
+  module Tags
+    PLATFORM_TOPICS_CATEGORIES = [77, 87, 102, 106,85,89]
+
+    def self.tag_video_reply(topic_tag)
+      video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
+      needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
+      supported_tag = Tag.find_or_create_by(name: "Supported")
+      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
+
+      if topic_tag.tag_id == video_reply_tag.id
+        topic = Topic.find_by(id: topic_tag.topic_id)
+        topic.tags.delete needs_support_tag
+        topic.tags << supported_tag unless topic.tags.include?(supported_tag)
+        topic.save!
+
+        # send user follow up message
+        require_dependency "post_creator"
+        system_user = User.find_by(username: "system")
+
+        message_text = "Hi #{topic.user.username}, \n" \
+          "On this topic you posted, did you get the support you needed? \n " \
+          "#{topic.url} \n" \
+          "Reply to this message with YES if you feel supported, or NO if you don't."
+
+          dm_params = {
+            title: "Follow Up on Your Recent Post",
+            raw: message_text,
+            archetype: Archetype.private_message,
+            target_usernames: [topic.user.username],
+            custom_fields: { ref_topic_id: topic.id },
+          }
+          PostCreator.create!(system_user, dm_params)
+          topic.custom_fields["asked_user"] = "true"
+          topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
+          topic.save!
+      end
+    end
+
+    def self.tag_platform_topic(topic)
+      need_listening_ear_tag = Tag.find_or_create_by(name: "Need-Listening-Ear")
+
+      if PLATFORM_TOPICS_CATEGORIES.include?(topic.category_id)
+        topic.tags << need_listening_ear_tag unless topic.tags.include?(need_listening_ear_tag)
+        topic.save!
       end
     end
   end

@@ -25,41 +25,14 @@ after_initialize do
   # after topic tag is created, check if it's a video reply tag
   ::TopicTag.class_eval do
     after_create do
-      video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
-      needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-      supported_tag = Tag.find_or_create_by(name: "Supported")
-      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
+      HeartSupport::Tags::tag_video_reply(self)
+    end
+  end
 
-      if self.tag_id == video_reply_tag.id
-        topic = Topic.find_by(id: self.topic_id)
-        topic.tags.delete needs_support_tag
-        topic.tags << supported_tag unless topic.tags.include?(supported_tag)
-        topic.save!
-
-        # send user follow up message
-        require_dependency "post_creator"
-        system_user = User.find_by(username: "system")
-
-        message_text = "Hi #{topic.user.username}, \n" \
-          "On this topic you posted, did you get the support you needed? \n " \
-          "#{topic.url} \n" \
-          "Reply to this message with YES if you feel supported, or NO if you don't."
-
-          dm_params = {
-            title: "Follow Up on Your Recent Post",
-            raw: message_text,  
-            archetype: Archetype.private_message,
-            target_usernames: [topic.user.username],
-            custom_fields: { ref_topic_id: topic.id },
-          }
-          PostCreator.create!(system_user, dm_params)
-          topic.custom_fields["asked_user"] = "true"
-          topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
-          topic.save!
-      end
-
-      
-
+  # after topic is created, add listening tag if platform topic
+  ::Topic.class_eval do
+    after_create do
+      HeartSupport::Tags::tag_platform_topic(self)
     end
   end
   

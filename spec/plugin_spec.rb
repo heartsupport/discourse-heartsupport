@@ -99,8 +99,8 @@ RSpec.describe HeartSupport::Support, type: :model do
           "Thank you for your feedback! \n" \
           "Click on the form and answer the one question because it will help us know specifically what helped: " \
           "<a href='https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform' target='_blank'>
-          https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform 
-          </a> \n" 
+          https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform
+          </a> \n"
         }
         it "responds with multiple choice" do
           expect { Post.create!(topic_id: pm_topic_id, user_id: user.id, raw: "Yes") }.to change { pm_topic.posts.count }.by(2)
@@ -212,7 +212,7 @@ RSpec.describe HeartSupport::Support, type: :model do
 
       describe "#execute" do
         it "assigns the closing tags correctly" do
-          
+
           # create posts with certain word length
           Fabricate(:post, topic: topic_1, user: Fabricate(:user))
           Fabricate(:post, topic: topic_1, user: Fabricate(:user))
@@ -315,6 +315,16 @@ RSpec.describe HeartSupport::Support, type: :model do
       expect(topic.tags.reload.include?(needs_support_tag)).to eq(false)
       expect(topic.tags.reload.include?(supported_tag)).to eq(true)
       expect(topic.tags.reload.include?(video_reply_tag)).to eq(true)
+    end
+  end
+
+  context "Topic Creation" do
+
+    let!(:topic) { Fabricate(:topic, archetype: "regular", category_id: "77" ) }
+    let!(:need_listening_ear_tag) { Tag.find_or_create_by(name: "Need-Listening-Ear") }
+
+    it "adds needs-listening-ear tag if platform topic" do
+      expect(topic.reload.tags.include?(need_listening_ear_tag)).to eq(true)
     end
   end
 end
