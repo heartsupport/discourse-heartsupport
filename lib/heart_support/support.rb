@@ -83,6 +83,7 @@ module HeartSupport
       asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
       user_answered_yes_tag = Tag.find_or_create_by(name: "User-Answered-Yes")
       user_answered_no_tag = Tag.find_or_create_by(name: "User-Answered-No")
+      sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
 
       topic = post.topic
 
@@ -101,6 +102,7 @@ module HeartSupport
             ref_topic.tags.delete needs_support_tag
             ref_topic.tags.delete staff_escalation_tag
             ref_topic.tags.delete asked_user_tag
+            ref_topic.tags.delete sufficient_words_tag
 
             unless ref_topic.tags.include?(supported_tag)
               ref_topic.tags << supported_tag
@@ -217,11 +219,15 @@ module HeartSupport
       needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
       supported_tag = Tag.find_or_create_by(name: "Supported")
       asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
+      sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
 
       if topic_tag.tag_id == video_reply_tag.id
         topic = Topic.find_by(id: topic_tag.topic_id)
         topic.tags.delete needs_support_tag
         topic.tags << supported_tag unless topic.tags.include?(supported_tag)
+        unless topic.tags.include?(sufficient_words_tag)
+          topic.tags << sufficient_words_tag
+        end
         topic.save!
 
         # send user follow up message
