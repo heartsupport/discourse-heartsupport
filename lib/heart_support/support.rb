@@ -12,6 +12,7 @@ module HeartSupport
 
       needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
       supplier_url = URI("https://porter.heartsupport.com/webhooks/supplier")
+      sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
 
       return unless SUPPORT_CATEGORIES.include?(category_id)
 
@@ -41,6 +42,10 @@ module HeartSupport
             if word_count >= SUPPORT_LIMIT
               # remove needs support tag
               topic.tags.delete needs_support_tag
+              # add sufficient words tag
+              unless topic.tags.include?(sufficient_words_tag)
+                topic.tags << sufficient_words_tag
+              end
               supported = false
               newly_supported = false
             end
