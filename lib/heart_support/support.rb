@@ -17,19 +17,24 @@ module HeartSupport
 
       if post.is_first_post?
         # If it's the first post, add the needs support tag
-        topic.tags << needs_support_tag unless topic.tags.include?(needs_support_tag)
+        unless topic.tags.include?(needs_support_tag)
+          topic.tags << needs_support_tag
+        end
         topic.custom_fields["needs_support"] = true
         topic.custom_fields["supported"] = false
         supported = false
       end
 
       if !post.is_first_post?
-        supported = topic.custom_fields["supported"] || !topic.tags.include?(needs_support_tag)
+        supported =
+          topic.custom_fields["supported"] ||
+            !topic.tags.include?(needs_support_tag)
         newly_supported = false
 
         unless supported
           # count reply word count
-          word_count = topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
+          word_count =
+            topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
           reply_count = topic.posts.count
 
           if reply_count >= 1
@@ -48,9 +53,11 @@ module HeartSupport
         uri = URI("https://porter.heartsupport.com/twilio/discourse_webhook")
         Net::HTTP.post_form(
           uri,
-          topic_id: topic.id, supported: supported,
+          topic_id: topic.id,
+          supported: supported,
           newly_supported: newly_supported,
-          body: post.cooked, username: user.username,
+          body: post.cooked,
+          username: user.username
         )
       end
 
@@ -65,7 +72,7 @@ module HeartSupport
         supported: supported,
         username: user.username,
         category_id: topic.category_id,
-        closed: topic.closed,
+        closed: topic.closed
       )
     end
 
@@ -83,7 +90,9 @@ module HeartSupport
       system_user = User.find_by(username: "system")
       # check if private message response and text is YES or NO
 
-      if topic.archetype == Archetype.private_message && topic.title == "Follow Up on Your Recent Post" && post.user_id != system_user.id
+      if topic.archetype == Archetype.private_message &&
+           topic.title == "Follow Up on Your Recent Post" &&
+           post.user_id != system_user.id
         user_message = post.raw.downcase&.strip
         ref_topic = Topic.find_by(id: topic.custom_fields["ref_topic_id"])
         case user_message
@@ -93,22 +102,27 @@ module HeartSupport
             ref_topic.tags.delete staff_escalation_tag
             ref_topic.tags.delete asked_user_tag
 
-            ref_topic.tags << supported_tag unless ref_topic.tags.include?(supported_tag)
-            ref_topic.tags << user_answered_yes_tag unless ref_topic.tags.include?(user_answered_yes_tag)
+            unless ref_topic.tags.include?(supported_tag)
+              ref_topic.tags << supported_tag
+            end
+            unless ref_topic.tags.include?(user_answered_yes_tag)
+              ref_topic.tags << user_answered_yes_tag
+            end
             ref_topic.custom_fields["supported"] = true
             ref_topic.save!
           end
 
-          response = "Thank you for your feedback! \n" \
-          "Click on the form and answer the one question because it will help us know specifically what helped: " \
-          "<a href='https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform' target='_blank'>
+          response =
+            "Thank you for your feedback! \n" \
+              "Click on the form and answer the one question because it will help us know specifically what helped: " \
+              "<a href='https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform' target='_blank'>
           https://docs.google.com/forms/d/e/1FAIpQLScrXmJ96G3l4aypDtf307JycIhFHS9_8WMkF65m9JiM9Xm6WA/viewform
           </a> \n"
 
           Post.create!(
             topic_id: topic.id,
             user_id: system_user.id,
-            raw: response,
+            raw: response
           )
 
           # send a DM thanking repliers
@@ -116,21 +130,25 @@ module HeartSupport
         when "no"
           if ref_topic
             ref_topic.tags.delete supported_tag
-            ref_topic.tags << staff_escalation_tag unless ref_topic.tags.include?(staff_escalation_tag)
-            ref_topic.tags << user_answered_no_tag unless ref_topic.tags.include?(user_answered_no_tag)
+            unless ref_topic.tags.include?(staff_escalation_tag)
+              ref_topic.tags << staff_escalation_tag
+            end
+            unless ref_topic.tags.include?(user_answered_no_tag)
+              ref_topic.tags << user_answered_no_tag
+            end
             ref_topic.custom_fields["staff_escalation"] = true
             ref_topic.save!
           end
 
-          response = "Thank you for sharing that with us. We'll get you more support. \n" \
-          "Click on the form and answer the one question because it will help us know how we can improve: " \
-          "<a href='https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform' target='_blank'>https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform</a>" \
-          "how we can improve."
+          response =
+            "Thank you for sharing that with us. We'll get you more support. \n" \
+              "Click on the form and answer the one question because it will help us know how we can improve: " \
+              "<a href='https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform' target='_blank'>https://docs.google.com/forms/d/e/1FAIpQLSdxWbRMQPUe0IxL0xBEDA5RZ5B0a9Yl2e25ltW5RGDE6J2DOA/viewform</a>"
 
           Post.create!(
             topic_id: topic.id,
             user_id: system_user.id,
-            raw: response,
+            raw: response
           )
         else
           # if staff escalation is true and supported is false then post a whisper
@@ -139,7 +157,7 @@ module HeartSupport
             whisper_params = {
               topic_id: ref_topic.id,
               post_type: Post.types[:whisper],
-              raw: user_message,
+              raw: user_message
             }
             PostCreator.create!(system_user, whisper_params)
 
@@ -150,7 +168,8 @@ module HeartSupport
               topic_id: ref_topic.id,
               message: user_message,
               discourse_user_id: post.user_id,
-              response: ref_topic.tags.include?(user_answered_yes_tag) ? "yes" : "no",
+              response:
+                ref_topic.tags.include?(user_answered_yes_tag) ? "yes" : "no"
             )
           end
         end
@@ -164,33 +183,34 @@ module HeartSupport
       # find system user
       system_user = User.find_by(username: "system")
 
-      repliers = topic.posts
-        .where.not(user_id: [topic.user_id, system_user.id])
-        .where("notify_moderators_count = ?", 0)
-        .where("deleted_at IS NULL")
-        .map(&:user)
-        .pluck(:username)
+      repliers =
+        topic
+          .posts
+          .where.not(user_id: [topic.user_id, system_user.id])
+          .where("notify_moderators_count = ?", 0)
+          .where("deleted_at IS NULL")
+          .map(&:user)
+          .pluck(:username)
 
       repliers.each do |username|
         dm_params = {
           title: "You helped a user!",
-          raw: "A user you supported named #{topic.user.username} said that your replies " \
-          "helped them feel cared for. Thank you so much for offering support " \
-          "to them. It's making a real difference. If you want to check out the " \
-          "topic you can find it here: #{topic.url}",
+          raw:
+            "A user you supported named #{topic.user.username} said that your replies " \
+              "helped them feel cared for. Thank you so much for offering support " \
+              "to them. It's making a real difference. If you want to check out the " \
+              "topic you can find it here: #{topic.url}",
           archetype: Archetype.private_message,
-          target_usernames: [username],
+          target_usernames: [username]
         }
         # send DM to repliers
         PostCreator.create!(system_user, dm_params)
       end
     end
-
-
   end
 
   module Tags
-    PLATFORM_TOPICS_CATEGORIES = [77, 87, 102, 106,85,89]
+    PLATFORM_TOPICS_CATEGORIES = [77, 87, 102, 106, 85, 89]
 
     def self.tag_video_reply(topic_tag)
       video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
@@ -208,22 +228,25 @@ module HeartSupport
         require_dependency "post_creator"
         system_user = User.find_by(username: "system")
 
-        message_text = "Hi #{topic.user.username}, \n" \
-          "On this topic you posted, did you get the support you needed? \n " \
-          "#{topic.url} \n" \
-          "Reply to this message with YES if you feel supported, or NO if you don't."
+        message_text =
+          "Hi #{topic.user.username}, \n" \
+            "On this topic you posted, did you get the support you needed? \n " \
+            "#{topic.url} \n" \
+            "Reply to this message with YES if you feel supported, or NO if you don't."
 
-          dm_params = {
-            title: "Follow Up on Your Recent Post",
-            raw: message_text,
-            archetype: Archetype.private_message,
-            target_usernames: [topic.user.username],
-            custom_fields: { ref_topic_id: topic.id },
+        dm_params = {
+          title: "Follow Up on Your Recent Post",
+          raw: message_text,
+          archetype: Archetype.private_message,
+          target_usernames: [topic.user.username],
+          custom_fields: {
+            ref_topic_id: topic.id
           }
-          PostCreator.create!(system_user, dm_params)
-          topic.custom_fields["asked_user"] = "true"
-          topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
-          topic.save!
+        }
+        PostCreator.create!(system_user, dm_params)
+        topic.custom_fields["asked_user"] = "true"
+        topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
+        topic.save!
       end
     end
 
@@ -231,7 +254,9 @@ module HeartSupport
       need_listening_ear_tag = Tag.find_or_create_by(name: "Need-Listening-Ear")
 
       if PLATFORM_TOPICS_CATEGORIES.include?(topic.category_id)
-        topic.tags << need_listening_ear_tag unless topic.tags.include?(need_listening_ear_tag)
+        unless topic.tags.include?(need_listening_ear_tag)
+          topic.tags << need_listening_ear_tag
+        end
         topic.save!
       end
     end
