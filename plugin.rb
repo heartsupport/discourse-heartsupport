@@ -12,9 +12,7 @@ after_initialize do
     needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
 
     if topic.tags.include?(needs_support_tag)
-      if status == "closed" && topic.closed
-        topic.tags.delete needs_support_tag
-      end
+      topic.tags.delete needs_support_tag if status == "closed" && topic.closed
 
       if status == "visible" && !topic.visible
         topic.tags.delete needs_support_tag
@@ -24,18 +22,13 @@ after_initialize do
 
   # after topic tag is created, check if it's a video reply tag
   ::TopicTag.class_eval do
-    after_create do
-      HeartSupport::Tags::tag_video_reply(self)
-    end
+    after_create { HeartSupport::Tags.tag_video_reply(self) }
   end
 
   # after topic is created, add listening tag if platform topic
   ::Topic.class_eval do
-    after_create do
-      HeartSupport::Tags::tag_platform_topic(self)
-    end
+    after_create { HeartSupport::Tags.tag_platform_topic(self) }
   end
-  
 
   ::Post.class_eval do
     after_create do
@@ -49,7 +42,6 @@ after_initialize do
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
     SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106]
-
 
     every 1.day
 
@@ -65,31 +57,46 @@ after_initialize do
       # count the non-op posts word count
       # if the word count is >= 500, add the supported tag & sufficient words tag else add the staff escalation tag
 
-      topics = Topic
-        .where("topics.last_posted_at BETWEEN ? AND ?", 14.days.ago.beginning_of_day, 14.days.ago.end_of_day)
-        .where("topics.archetype = ?", "regular")
-        .where.not(id: TopicTag.select(:topic_id).where(tag_id: supported_tag.id))
-        .where.not(closed: true)
-        .where(deleted_at: nil)
+      topics =
+        Topic
+          .where(
+            "topics.last_posted_at BETWEEN ? AND ?",
+            14.days.ago.beginning_of_day,
+            14.days.ago.end_of_day
+          )
+          .where("topics.archetype = ?", "regular")
+          .where.not(
+            id: TopicTag.select(:topic_id).where(tag_id: supported_tag.id)
+          )
+          .where.not(closed: true)
+          .where(deleted_at: nil)
 
       topics.each do |topic|
         topic.tags.delete needs_support_tag
         topic.tags.delete asked_user_tag
 
-        word_count = topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
+        word_count =
+          topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
 
         # add the supported tag
         if word_count >= SUPPORT_LIMIT
           topic.tags << supported_tag unless topic.tags.include?(supported_tag)
           topic.custom_fields["supported"] = true
-          topic.tags << sufficient_words_tag unless topic.tags.include?(sufficient_words_tag)
+          unless topic.tags.include?(sufficient_words_tag)
+            topic.tags << sufficient_words_tag
+          end
         elsif topic.tags.include?(video_reply_tag)
           topic.tags << supported_tag unless topic.tags.include?(supported_tag)
           topic.custom_fields["supported"] = true
-          topic.tags << sufficient_words_tag unless topic.tags.include?(sufficient_words_tag)
+          unless topic.tags.include?(sufficient_words_tag)
+            topic.tags << sufficient_words_tag
+          end
         else
-          if SUPPORT_CATEGORIES.include?(topic.category_id) && topic.visible && !topic.closed
-            topic.tags << staff_escalation_tag unless topic.tags.include?(staff_escalation_tag)
+          if SUPPORT_CATEGORIES.include?(topic.category_id) && topic.visible &&
+               !topic.closed
+            unless topic.tags.include?(staff_escalation_tag)
+              topic.tags << staff_escalation_tag
+            end
           end
         end
 
@@ -107,7 +114,7 @@ after_initialize do
         supported: true,
         username: topic.user.username,
         category_id: topic.category_id,
-        closed: topic.closed,
+        closed: topic.closed
       )
     end
   end
@@ -122,54 +129,73 @@ after_initialize do
     def execute(args)
       supported_tag = Tag.find_or_create_by(name: "Supported")
       asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
-      venting_no_reply_needed_tag = Tag.find_or_create_by(name: "Venting-No-Reply-Needed")
+      # venting_no_reply_needed_tag = Tag.find_or_create_by(name: "Venting-No-Reply-Needed")
       video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
 
       # query all all topics created > 24 hours, does not have a supported tag, and don't have an asked user tag
 
-      topics = Topic
-        .where("topics.created_at BETWEEN ? AND ?", 14.days.ago, 24.hours.ago)
-        .where("topics.archetype = ?", "regular")
-        .where("topics.posts_count > ?", 1)
-        .where(category_id: ASK_CATEGORIES)
-        .where.not(id: TopicTag.select(:topic_id).where(tag_id: [supported_tag.id, venting_no_reply_needed_tag.id, asked_user_tag.id]))
-        .where.not(id: TopicCustomField.select(:topic_id).where(name: "asked_user"))
-        .distinct
+      topics =
+        Topic
+          .where("topics.created_at BETWEEN ? AND ?", 14.days.ago, 24.hours.ago)
+          .where("topics.archetype = ?", "regular")
+          .where("topics.posts_count > ?", 1)
+          .where(category_id: ASK_CATEGORIES)
+          .where.not(
+            id:
+              TopicTag.select(:topic_id).where(
+                tag_id: [supported_tag.id, asked_user_tag.id]
+              )
+          )
+          .where.not(
+            id: TopicCustomField.select(:topic_id).where(name: "asked_user")
+          )
+          .distinct
 
       topics.each do |topic|
         next if topic.custom_fields["asked_user"].present?
-        word_count = topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
+        word_count =
+          topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
         if word_count >= ASK_USER_LIMIT
           # send a message to the user asking if they feel supported
           require_dependency "post_creator"
           system_user = User.find_by(username: "system")
 
-          message_text = "Hi #{topic.user.username}, \n" \
-          "On this topic you posted, did you get the support you needed? \n " \
-          "#{topic.url} \n" \
-          "Reply to this message with YES if you feel supported, or NO if you don't."
+          message_text =
+            "Hi #{topic.user.username}, \n" \
+              "On this topic you posted, did you get the support you needed? \n " \
+              "#{topic.url} \n" \
+              "Reply to this message with YES if you feel supported, or NO if you don't."
 
           dm_params = {
             title: "Follow Up on Your Recent Post",
-            raw: message_text,  
+            raw: message_text,
             archetype: Archetype.private_message,
             target_usernames: [topic.user.username],
-            custom_fields: { ref_topic_id: topic.id },
+            custom_fields: {
+              ref_topic_id: topic.id
+            }
           }
           PostCreator.create!(system_user, dm_params)
           topic.custom_fields["asked_user"] = "true"
-          topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
+          unless topic.tags.include?(asked_user_tag)
+            topic.tags << asked_user_tag
+          end
           topic.save!
         end
       end
 
-      video_topics = Topic
-        .where("topics.archetype = ?", "regular")
-        .where(category_id: ASK_CATEGORIES)
-        .where.not(id: TopicCustomField.select(:topic_id).where(name: "asked_user"))
-        .where(category_id: ASK_CATEGORIES)
-        .where(id: TopicTag.select(:topic_id).where(tag_id: video_reply_tag.id))
-        .distinct
+      video_topics =
+        Topic
+          .where("topics.archetype = ?", "regular")
+          .where(category_id: ASK_CATEGORIES)
+          .where.not(
+            id: TopicCustomField.select(:topic_id).where(name: "asked_user")
+          )
+          .where(category_id: ASK_CATEGORIES)
+          .where(
+            id: TopicTag.select(:topic_id).where(tag_id: video_reply_tag.id)
+          )
+          .distinct
 
       video_topics.each do |topic|
         next if topic.custom_fields["asked_user"].present?
@@ -178,12 +204,15 @@ after_initialize do
 
         dm_params = {
           title: "Follow Up on Your Recent Post",
-          raw: "Hi #{topic.user.username}, On this topic you posted, did you get the support you needed? \n " \
-          "#{topic.url} \n" \
-          "Reply to this message with YES if you feel supported, or NO if you don't.",
+          raw:
+            "Hi #{topic.user.username}, On this topic you posted, did you get the support you needed? \n " \
+              "#{topic.url} \n" \
+              "Reply to this message with YES if you feel supported, or NO if you don't.",
           archetype: Archetype.private_message,
           target_usernames: [topic.user.username],
-          custom_fields: { ref_topic_id: topic.id },
+          custom_fields: {
+            ref_topic_id: topic.id
+          }
         }
         PostCreator.create!(system_user, dm_params)
         topic.custom_fields["asked_user"] = "true"
