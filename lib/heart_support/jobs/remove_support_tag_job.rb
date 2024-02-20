@@ -3,6 +3,7 @@ module HeartSupport
     class ::Jobs::RemoveSupportTagJob < ::Jobs::Scheduled
       SUPPORT_LIMIT = 500
       ASK_USER_LIMIT = 300
+      SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106]
 
       every 1.day
 
@@ -14,11 +15,12 @@ module HeartSupport
         sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
 
         # Query for all with last post created > 14 days && do not not have a "Supported tag"
-        topics = Topic
-          .where("last_posted_at < ?", 14.days.ago)
-          .where("topics.archetype = ?", "regular")
-          .left_outer_joins(:topic_tags)
-          .where("topic_tags.tag_id != ?", supported_tag.id)
+        topics =
+          Topic
+            .where("last_posted_at < ?", 14.days.ago)
+            .where("topics.archetype = ?", "regular")
+            .left_outer_joins(:topic_tags)
+            .where("topic_tags.tag_id != ?", supported_tag.id)
 
         topics.each do |topic|
           topic.tags.delete needs_support_tag
@@ -26,11 +28,18 @@ module HeartSupport
 
           # add the supported tag
           if topic.posts.sum(:word_count) >= SUPPORT_LIMIT
-            topic.tags << supported_tag unless topic.tags.include?(supported_tag)
+            unless topic.tags.include?(supported_tag)
+              topic.tags << supported_tag
+            end
             topic.custom_fields["supported"] = true
-            topic.tags << sufficient_words_tag unless topic.tags.include?(sufficient_words_tag)
+            unless topic.tags.include?(sufficient_words_tag)
+              topic.tags << sufficient_words_tag
+            end
           else
-            topic.tags << staff_escalation_tag unless topic.tags.include?(staff_escalation_tag)
+            if SUPPORT_CATEGORIES.include?(topic.category_id) &&
+                 !topic.tags.include?(staff_escalation_tag)
+              topic.tags << staff_escalation_tag
+            end
           end
 
           topic.save!
@@ -47,7 +56,7 @@ module HeartSupport
           supported: true,
           username: topic.user.username,
           category_id: topic.category_id,
-          closed: topic.closed,
+          closed: topic.closed
         )
       end
     end

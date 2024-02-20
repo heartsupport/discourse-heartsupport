@@ -86,8 +86,9 @@ after_initialize do
             topic.tags << sufficient_words_tag
           end
         elsif topic.tags.include?(video_reply_tag)
-          topic.tags << supported_tag unless topic.tags.include?(supported_tag)
-          topic.custom_fields["supported"] = true
+          # changed implementation to only add sufficient words tag if the topic has a video reply tag 20/02/24
+          # topic.tags << supported_tag unless topic.tags.include?(supported_tag)
+          # topic.custom_fields["supported"] = true
           unless topic.tags.include?(sufficient_words_tag)
             topic.tags << sufficient_words_tag
           end

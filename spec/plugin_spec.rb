@@ -334,6 +334,9 @@ RSpec.describe HeartSupport::Support, type: :model do
         Tag.find_or_create_by(name: "Staff-Escalation")
       end
       let(:video_reply_tag) { Tag.find_or_create_by(name: "Video-Reply") }
+      let(:sufficient_words_tag) do
+        Tag.find_or_create_by(name: "Sufficient-Words")
+      end
 
       describe "#execute" do
         it "assigns the closing tags correctly" do
@@ -368,7 +371,7 @@ RSpec.describe HeartSupport::Support, type: :model do
 
           ::Jobs::RemoveSupportTagJob.new.execute({})
 
-          expect(topic_1.reload.tags.include?(supported_tag)).to eq(true)
+          expect(topic_1.reload.tags.include?(sufficient_words_tag)).to eq(true)
           expect(topic_1.reload.tags.include?(video_reply_tag)).to eq(true)
           expect(topic_2.reload.tags.include?(staff_escalation_tag)).to eq(true)
           expect(topic_3.reload.tags.include?(supported_tag)).to eq(true)
@@ -523,6 +526,9 @@ RSpec.describe HeartSupport::Support, type: :model do
     let(:supported_tag) { Tag.find_or_create_by(name: "Supported") }
     let(:needs_support_tag) { Tag.find_or_create_by(name: "Needs-Support") }
     let(:video_reply_tag) { Tag.find_or_create_by(name: "Video-Reply") }
+    let(:sufficient_words_tag) do
+      Tag.find_or_create_by(name: "Sufficient-Words")
+    end
 
     before do
       stub_supplier
@@ -537,7 +543,7 @@ RSpec.describe HeartSupport::Support, type: :model do
       topic.save!
 
       expect(topic.tags.reload.include?(needs_support_tag)).to eq(false)
-      expect(topic.tags.reload.include?(supported_tag)).to eq(true)
+      expect(topic.tags.reload.include?(sufficient_words_tag)).to eq(true)
       expect(topic.tags.reload.include?(video_reply_tag)).to eq(true)
     end
   end
