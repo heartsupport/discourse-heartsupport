@@ -26,8 +26,11 @@ module HeartSupport
           topic.tags.delete needs_support_tag
           topic.tags.delete asked_user_tag
 
+          word_count =
+            topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
+
           # add the supported tag
-          if topic.posts.sum(:word_count) >= SUPPORT_LIMIT
+          if word_count >= SUPPORT_LIMIT
             unless topic.tags.include?(supported_tag)
               topic.tags << supported_tag
             end
