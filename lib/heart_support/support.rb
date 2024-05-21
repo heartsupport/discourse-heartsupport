@@ -4,6 +4,7 @@ module HeartSupport
     ASK_CATEGORIES = [67, 89]
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
+    STAFF_GROUPS = [3, 42, 73]
 
     def self.check_support(post)
       topic = post.topic
@@ -139,6 +140,9 @@ module HeartSupport
             ref_topic.tags.delete supported_tag
             unless ref_topic.tags.include?(staff_escalation_tag)
               ref_topic.tags << staff_escalation_tag
+              if ref_topic.tags.include?(asked_user_tag)
+                ref_topic.tags.delete asked_user_tag
+              end
             end
             unless ref_topic.tags.include?(user_answered_no_tag)
               ref_topic.tags << user_answered_no_tag
@@ -212,6 +216,48 @@ module HeartSupport
         }
         # send DM to repliers
         PostCreator.create!(system_user, dm_params)
+      end
+    end
+
+    def self.update_tags(post)
+      staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
+      staff_replied_tag = Tag.find_or_create_by(name: "Staff-Replied")
+      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
+
+      topic = post.topic
+      user = post.user
+
+      if STAFF_GROUPS.include?(user.primary_group_id) &&
+           topic.tags.include?(staff_escalation_tag)
+        # if the a staff user replies to a topic with staff escalation tag
+        # remove the staff escalation tag and add staff replied tag
+        topic.tags.delete staff_escalation_tag
+        topic.tags << staff_replied_tag
+
+        # DM user to ask for feedback
+        require_dependency "post_creator"
+        system_user = User.find_by(username: "system")
+
+        message_text =
+          "Hi #{topic.user.username}, \n" \
+            "On this topic you posted, did you get the support you needed? \n " \
+            "#{topic.url} \n" \
+            "Reply to this message with YES if you feel supported, or NO if you don't."
+
+        dm_params = {
+          title: "Follow Up on Your Recent Post",
+          raw: message_text,
+          archetype: Archetype.private_message,
+          target_usernames: [topic.user.username],
+          custom_fields: {
+            ref_topic_id: topic.id
+          }
+        }
+        PostCreator.create!(system_user, dm_params)
+        topic.custom_fields["asked_user"] = "true"
+        topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
+
+        topic.save!
       end
     end
   end

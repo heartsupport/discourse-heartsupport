@@ -4,6 +4,9 @@
 # authors: Acacia Bengo Ssembajjwe
 # url: https://github.com/heartsupport/discourse-heartsupport.git
 
+# register_asset "javascripts/discourse/initializers/loom-record-button.js.es6"
+# register_asset "stylesheets/custom.scss"
+
 after_initialize do
   require_relative "lib/heart_support/support"
 
@@ -34,6 +37,7 @@ after_initialize do
     after_create do
       HeartSupport::Support.check_support(self)
       HeartSupport::Support.check_response(self)
+      HeartSupport::Support.update_tags(self)
     end
   end
 
@@ -97,6 +101,9 @@ after_initialize do
                !topic.closed
             unless topic.tags.include?(staff_escalation_tag)
               topic.tags << staff_escalation_tag
+              if topic.tags.include?(asked_user_tag)
+                topic.tags.delete asked_user_tag
+              end
             end
           end
         end

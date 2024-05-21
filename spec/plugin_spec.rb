@@ -115,6 +115,35 @@ RSpec.describe HeartSupport::Support, type: :model do
         expect(topic.reload.tags.include?(needs_support_tag)).to eq(true)
       end
     end
+
+    context "when the post is a staff replier to an escalated topic" do
+      let!(:needs_support_tag) { Tag.find_or_create_by(name: "Needs-Support") }
+      let!(:staff_escalation_tag) do
+        Tag.find_or_create_by(name: "Staff-Escalation")
+      end
+      let!(:staff_replied_tag) { Tag.find_or_create_by(name: "Staff-Replied") }
+      let!(:asked_user_tag) { Tag.find_or_create_by(name: "Asked-User") }
+      let(:user) { Fabricate(:active_user) }
+      let(:topic) do
+        Fabricate(:topic, category_id: 67, archetype: "regular", user: user)
+      end
+      let(:group) { Fabricate(:group, id: 42) }
+
+      before do
+        stub_supplier
+        stub_hsapps
+      end
+
+      it "adds the staff replied tag" do
+        user.update!(primary_group_id: group.id)
+        Fabricate(:post, topic: topic)
+        topic.tags << staff_escalation_tag
+        topic.save!
+
+        staff_post = Fabricate(:post, topic: topic, user: user)
+        expect(topic.reload.tags.include?(staff_replied_tag)).to eq(true)
+      end
+    end
   end
 
   context "Private Messages" do

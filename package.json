@@ -1,0 +1,9 @@
+{
+  "name": "discourse-heartsupport",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:heartsupport/discourse-heartsupport.git",
+  "author": "Acacia B Ssembajjwe <acaciabengo@gmail.com>",
+  "license": "MIT",
+  "dependencies": {}
+}
