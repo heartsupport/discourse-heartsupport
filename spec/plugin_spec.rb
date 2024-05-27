@@ -338,22 +338,23 @@ RSpec.describe HeartSupport::Support, type: :model do
       let(:topic_1) do
         Fabricate(
           :topic,
-          last_posted_at: 14.days.ago.beginning_of_day,
+          created_at: 14.days.ago.beginning_of_day,
           archetype: "regular"
         )
       end
       let(:topic_2) do
         Fabricate(
           :topic,
-          last_posted_at: 14.days.ago,
+          created_at: 14.days.ago,
           archetype: "regular",
-          category_id: 106
+          category_id: 106,
+          created_at: 14.days.ago
         )
       end
       let(:topic_3) do
         Fabricate(
           :topic,
-          last_posted_at: 14.days.ago,
+          created_at: 14.days.ago,
           archetype: "regular",
           category_id: 106
         )
