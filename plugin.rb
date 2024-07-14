@@ -57,24 +57,6 @@ after_initialize do
       sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
       video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
 
-      # find all topics whose last activity was on this day 14 days ago with the regular archetype and not the supported tag
-      # count the non-op posts word count
-      # if the word count is >= 500, add the supported tag & sufficient words tag else add the staff escalation tag
-
-      # topics =
-      #   Topic
-      #     .where(
-      #       "topics.last_posted_at BETWEEN ? AND ?",
-      #       14.days.ago.beginning_of_day,
-      #       14.days.ago.end_of_day
-      #     )
-      #     .where("topics.archetype = ?", "regular")
-      #     .where.not(
-      #       id: TopicTag.select(:topic_id).where(tag_id: supported_tag.id)
-      #     )
-      #     .where.not(closed: true)
-      #     .where(deleted_at: nil)
-
       # change the query for topics to be escalated based on create date instead of last_posted_at 20/02/24
       topics =
         Topic

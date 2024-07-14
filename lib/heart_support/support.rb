@@ -5,6 +5,7 @@ module HeartSupport
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
     STAFF_GROUPS = [3, 42, 73]
+    # RESOLUTION_HIERARCHY = [{ tag: "User-Answered-Yes", priority: "yes" }]
 
     def self.check_support(post)
       topic = post.topic
@@ -260,6 +261,142 @@ module HeartSupport
         topic.save!
       end
     end
+
+    def self.process_post(post)
+      topic = post.topic
+      category_id = topic.category_id
+      user = post.user
+
+      # return if the topic category is not in the support categories
+      return unless SUPPORT_CATEGORIES.include?(category_id)
+
+      # check if the first post as a topic or a reply
+      if post.is_first_post?
+        # add needs support tag to the topic
+        needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
+        unless topic.tags.include?(needs_support_tag)
+          topic.tags << needs_support_tag
+        end
+        topic.custom_fields["needs_support"] = true
+        topic.custom_fields["supported"] = false
+        supported = false
+        newly_supported = false
+        topic.save
+      end
+
+      if !post.is_first_post?
+        reply_count = topic.posts.where.not(user_id: topic.user_id).count
+        word_count =
+          topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
+
+        supported = topic.tags.include?(supported_tag)
+        # when already supported
+        if supported
+        end
+        #
+        #when not supported
+        if !supported
+          # when word counts > 500
+          # remove needs support tag, add sufficient words tag and
+          # supported tag and remove all other resolution tags
+          if word_count >= SUPPORT_LIMIT
+            # add sufficient words tag
+            set_resolution_tag(topic, "Sufficient-Words")
+
+            # add supported tag
+            # set resolution tag as supported
+            set_resolution_tag(topic, "Supported")
+            newly_supported = true
+            supported = true
+            topic.custom_fields["supported"] = true
+
+            topic.save
+          end
+
+          # when word counts < 500
+          if word_count < SUPPORT_LIMIT
+            # if replier is a staff member or surge-replier, then add trained_replier tag
+            if user.primary_group_id == 73 || user.primary_group_id == 42
+              # set the trained replier tag
+              set_resolution_tag(topic, "Trained-Reply")
+            end
+
+            # if repler is a SWAT member and the second then set trained replier tag too
+            if user.primary_group_id == 54
+              swat_repliers =
+                topic
+                  .posts
+                  .joins(:user)
+                  .where(users: { primary_group_id: 54 })
+                  .count
+              if swat_repliers >= 2
+                # set the trained replier tag
+                set_resolution_tag(topic, "Trained-Reply")
+              end
+            end
+          end
+        end
+      end
+
+      # send webhook request to supplier
+      send_supplier_webhook(
+        topic.id,
+        supported,
+        user.username,
+        category_id,
+        topic.closed
+      )
+      # send a webhook to discourse
+      send_discourse_webhook(
+        topic.id,
+        supported,
+        newly_supported,
+        post.cooked,
+        user.username
+      )
+    end
+  end
+
+  def send_discourse_webhook(
+    topic_id,
+    supported,
+    newly_supported,
+    body,
+    username
+  )
+    Rails.logger.info("POSTING TO HSAPPS")
+    url = "https://porter.heartsupport.com/twilio/discourse_webhook"
+    hsapps_url = URI(url)
+    Net::HTTP.post_form(
+      hsapps_url,
+      topic_id: topic_id,
+      supported: supported,
+      newly_supported: newly_supported,
+      body: body,
+      username: username
+    )
+  end
+
+  def send_supplier_webhook(topic_id, supported, username, category_id, closed)
+    # send webhook request to supplier
+    Rails.logger.info("POSTING TO SUPPLIER")
+
+    url = "https://porter.heartsupport.com/webhooks/supplier"
+    supplier_url = URI(url)
+
+    # make an API call to create a supplier topic
+    Net::HTTP.post_form(
+      supplier_url,
+      topic_id: topic_id,
+      supported: supported,
+      username: username,
+      category_id: category_id,
+      closed: closed
+    )
+  end
+
+  def set_resolution_tag(topic, tag_name)
+    # if tag is trained reply, remove needs support and add supported and trained_reply
   end
 
   module Tags
