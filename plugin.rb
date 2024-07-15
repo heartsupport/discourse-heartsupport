@@ -35,7 +35,7 @@ after_initialize do
 
   ::Post.class_eval do
     after_create do
-      HeartSupport::Support.check_support(self)
+      HeartSupport::Support.process_post(self)
       HeartSupport::Support.check_response(self)
       HeartSupport::Support.update_tags(self)
     end

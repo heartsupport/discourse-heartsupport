@@ -1,97 +1,77 @@
 module HeartSupport
+  RESOLUTION_HIERARCHY = [
+    { tag: "User-Answered-Yes", priority: 7 },
+    { tag: "User-Selected", priority: 6 },
+    { tag: "User-Answered-No", priority: 5 },
+    { tag: "Admin-Selected", priority: 4 },
+    { tag: "Sufficient-Words", priority: 3 },
+    { tag: "Trained-Reply", priority: 2 },
+    { tag: "Insufficient", priority: 1 },
+    { tag: "Needs-Support", priority: 0 }
+  ]
+
+  def self.set_resolution_tag(topic, tag_name)
+    forum_tag =
+      HeartSupport::RESOLUTION_HIERARCHY.find do |forum_tag|
+        forum_tag[:tag] == tag_name
+      end
+
+    if forum_tag
+      tag_name = forum_tag[:tag]
+      priority = forum_tag[:priority]
+
+      # find all tags with lower prioty and remove them
+      lower_priority_tags =
+        HeartSupport::RESOLUTION_HIERARCHY.select do |tag|
+          tag[:priority] < priority
+        end
+      lower_priority_tags.each do |tag|
+        the_tag = Tag.find_by(name: tag[:tag])
+        if topic.tags.include?(the_tag)
+          topic.tags.delete(Tag.find_by(name: tag[:tag]))
+        end
+      end
+
+      higher_priority_tags =
+        HeartSupport::RESOLUTION_HIERARCHY.select do |tag|
+          tag[:priority] > priority
+        end
+
+      if higher_priority_tags.blank?
+        # add the tag
+        the_tag = Tag.find_or_create_by(name: tag_name)
+        topic.tags << the_tag unless topic.tags.include?(the_tag)
+      end
+
+      # save the topic
+      topic.save
+    end
+  end
+
+  def self.add_topic_tags(topic, tag_name)
+    tag = Tag.find_by(name: tag_name)
+    if tag && topic.tags.exclude?(tag)
+      topic.tags << tag
+      topic.save
+    end
+  end
+
+  def self.remove_topic_tags(topic, tag_name)
+    tag = Tag.find_by(name: tag_name)
+    if tag && topic.tags.include?(tag)
+      topic.tags.delete(tag)
+      topic.save
+    end
+  end
+
   module Support
     SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106]
     ASK_CATEGORIES = [67, 89]
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
     STAFF_GROUPS = [3, 42, 73]
-    # RESOLUTION_HIERARCHY = [{ tag: "User-Answered-Yes", priority: "yes" }]
-
-    def self.check_support(post)
-      topic = post.topic
-      category_id = topic.category_id
-      user = post.user
-
-      needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-      supplier_url = URI("https://porter.heartsupport.com/webhooks/supplier")
-      sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
-
-      return unless SUPPORT_CATEGORIES.include?(category_id)
-
-      if post.is_first_post?
-        # If it's the first post, add the needs support tag
-        unless topic.tags.include?(needs_support_tag)
-          topic.tags << needs_support_tag
-        end
-        topic.custom_fields["needs_support"] = true
-        topic.custom_fields["supported"] = false
-        supported = false
-      end
-
-      if !post.is_first_post?
-        supported =
-          topic.custom_fields["supported"] ||
-            !topic.tags.include?(needs_support_tag)
-        newly_supported = false
-
-        unless supported
-          # count reply word count
-          word_count =
-            topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
-          reply_count = topic.posts.count
-
-          if reply_count >= 1
-            if word_count >= SUPPORT_LIMIT
-              # remove needs support tag
-              topic.tags.delete needs_support_tag
-              # add sufficient words tag
-              unless topic.tags.include?(sufficient_words_tag)
-                topic.tags << sufficient_words_tag
-              end
-              supported = false
-              newly_supported = false
-            end
-          end
-
-          topic.save!
-        end
-
-        Rails.logger.info("POSTING TO HSAPPS")
-        uri = URI("https://porter.heartsupport.com/twilio/discourse_webhook")
-        Net::HTTP.post_form(
-          uri,
-          topic_id: topic.id,
-          supported: supported,
-          newly_supported: newly_supported,
-          body: post.cooked,
-          username: user.username
-        )
-      end
-
-      Rails.logger.info("CHECKING FOR SUPPORT ON #{self}")
-
-      # send webhook request to supplier
-      Rails.logger.info("POSTING TO SUPPLIER")
-      # make an API call to create a supplier topic
-      Net::HTTP.post_form(
-        supplier_url,
-        topic_id: topic.id,
-        supported: supported,
-        username: user.username,
-        category_id: topic.category_id,
-        closed: topic.closed
-      )
-    end
 
     def self.check_response(post)
-      needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-      supported_tag = Tag.find_or_create_by(name: "Supported")
-      staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
-      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
-      user_answered_yes_tag = Tag.find_or_create_by(name: "User-Answered-Yes")
-      user_answered_no_tag = Tag.find_or_create_by(name: "User-Answered-No")
-      sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
-
       topic = post.topic
 
       # define the system user
@@ -106,19 +86,20 @@ module HeartSupport
         case user_message
         when "yes"
           if ref_topic
-            ref_topic.tags.delete needs_support_tag
-            ref_topic.tags.delete staff_escalation_tag
-            ref_topic.tags.delete asked_user_tag
-            ref_topic.tags.delete sufficient_words_tag
+            # remove staff escalation tag
+            HeartSupport.remove_topic_tags(ref_topic, "Staff-Escalation")
+            #
+            # remove asked user tag
+            HeartSupport.remove_topic_tags(ref_topic, "Asked-User")
 
-            unless ref_topic.tags.include?(supported_tag)
-              ref_topic.tags << supported_tag
-            end
-            unless ref_topic.tags.include?(user_answered_yes_tag)
-              ref_topic.tags << user_answered_yes_tag
-            end
+            # add supported tag
+            HeartSupport.add_topic_tags(ref_topic, "Supported")
+
+            # set resolution tag as user answered yes
+            HeartSupport.set_resolution_tag(ref_topic, "User-Answered-Yes")
+
             ref_topic.custom_fields["supported"] = true
-            ref_topic.save!
+            ref_topic.save
           end
 
           response =
@@ -138,16 +119,18 @@ module HeartSupport
           thank_repliers(ref_topic)
         when "no"
           if ref_topic
-            ref_topic.tags.delete supported_tag
-            unless ref_topic.tags.include?(staff_escalation_tag)
-              ref_topic.tags << staff_escalation_tag
-              if ref_topic.tags.include?(asked_user_tag)
-                ref_topic.tags.delete asked_user_tag
-              end
-            end
-            unless ref_topic.tags.include?(user_answered_no_tag)
-              ref_topic.tags << user_answered_no_tag
-            end
+            # remove the supported tag
+            HeartSupport.remove_topic_tags(ref_topic, "Supported")
+
+            # add staff escalation tag
+            HeartSupport.add_topic_tags(ref_topic, "Staff-Escalation")
+
+            # remove the asked user tag
+            HeartSupport.remove_topic_tags(ref_topic, "Asked-User")
+
+            # add resolution tag as user answered no
+            HeartSupport.add_resolution_tag(ref_topic, "User-Answered-No")
+
             ref_topic.custom_fields["staff_escalation"] = true
             ref_topic.save!
           end
@@ -221,19 +204,11 @@ module HeartSupport
     end
 
     def self.update_tags(post)
-      staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
-      staff_replied_tag = Tag.find_or_create_by(name: "Staff-Replied")
-      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
-
       topic = post.topic
       user = post.user
-
-      if STAFF_GROUPS.include?(user.primary_group_id) &&
-           topic.tags.include?(staff_escalation_tag)
-        # if the a staff user replies to a topic with staff escalation tag
-        # remove the staff escalation tag and add staff replied tag
-        topic.tags.delete staff_escalation_tag
-        topic.tags << staff_replied_tag
+      if user.staff?
+        # remove the staff escalation tag
+        HeartSupport.remove_topic_tags(topic, "Staff-Escalation")
 
         # DM user to ask for feedback
         require_dependency "post_creator"
@@ -256,7 +231,8 @@ module HeartSupport
         }
         PostCreator.create!(system_user, dm_params)
         topic.custom_fields["asked_user"] = "true"
-        topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
+
+        HeartSupport.add_topic_tags(topic, "Asked-User")
 
         topic.save!
       end
@@ -272,11 +248,8 @@ module HeartSupport
 
       # check if the first post as a topic or a reply
       if post.is_first_post?
-        # add needs support tag to the topic
-        needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-        unless topic.tags.include?(needs_support_tag)
-          topic.tags << needs_support_tag
-        end
+        # add the needs support tag
+        HeartSupport.add_topic_tags(topic, "Needs-Support")
         topic.custom_fields["needs_support"] = true
         topic.custom_fields["supported"] = false
         supported = false
@@ -290,22 +263,22 @@ module HeartSupport
           topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
 
         supported = topic.tags.include?(supported_tag)
-        # when already supported
-        if supported
-        end
+        # # when already supported
+        # if supported
+        # end
         #
         #when not supported
         if !supported
           # when word counts > 500
           # remove needs support tag, add sufficient words tag and
           # supported tag and remove all other resolution tags
-          if word_count >= SUPPORT_LIMIT
+          if word_count >= SUPPORT_LIMIT && reply_count >= 1
             # add sufficient words tag
-            set_resolution_tag(topic, "Sufficient-Words")
+            HeartSupport.set_resolution_tag(topic, "Sufficient-Words")
 
             # add supported tag
             # set resolution tag as supported
-            set_resolution_tag(topic, "Supported")
+            HeartSupport.set_resolution_tag(topic, "Supported")
             newly_supported = true
             supported = true
             topic.custom_fields["supported"] = true
@@ -318,7 +291,7 @@ module HeartSupport
             # if replier is a staff member or surge-replier, then add trained_replier tag
             if user.primary_group_id == 73 || user.primary_group_id == 42
               # set the trained replier tag
-              set_resolution_tag(topic, "Trained-Reply")
+              HeartSupport.set_resolution_tag(topic, "Trained-Reply")
             end
 
             # if repler is a SWAT member and the second then set trained replier tag too
@@ -331,7 +304,7 @@ module HeartSupport
                   .count
               if swat_repliers >= 2
                 # set the trained replier tag
-                set_resolution_tag(topic, "Trained-Reply")
+                HeartSupport.set_resolution_tag(topic, "Trained-Reply")
               end
             end
           end
@@ -355,53 +328,65 @@ module HeartSupport
         user.username
       )
     end
-  end
 
-  def send_discourse_webhook(
-    topic_id,
-    supported,
-    newly_supported,
-    body,
-    username
-  )
-    Rails.logger.info("POSTING TO HSAPPS")
-    url = "https://porter.heartsupport.com/twilio/discourse_webhook"
-    hsapps_url = URI(url)
-    Net::HTTP.post_form(
-      hsapps_url,
-      topic_id: topic_id,
-      supported: supported,
-      newly_supported: newly_supported,
-      body: body,
-      username: username
+    def send_discourse_webhook(
+      topic_id,
+      supported,
+      newly_supported,
+      body,
+      username
     )
-  end
+      Rails.logger.info("POSTING TO HSAPPS")
+      url = "https://porter.heartsupport.com/twilio/discourse_webhook"
+      hsapps_url = URI(url)
+      Net::HTTP.post_form(
+        hsapps_url,
+        topic_id: topic_id,
+        supported: supported,
+        newly_supported: newly_supported,
+        body: body,
+        username: username
+      )
+    end
 
-  def send_supplier_webhook(topic_id, supported, username, category_id, closed)
-    # send webhook request to supplier
-    Rails.logger.info("POSTING TO SUPPLIER")
-
-    url = "https://porter.heartsupport.com/webhooks/supplier"
-    supplier_url = URI(url)
-
-    # make an API call to create a supplier topic
-    Net::HTTP.post_form(
-      supplier_url,
-      topic_id: topic_id,
-      supported: supported,
-      username: username,
-      category_id: category_id,
-      closed: closed
+    def send_supplier_webhook(
+      topic_id,
+      supported,
+      username,
+      category_id,
+      closed
     )
-  end
+      # send webhook request to supplier
+      Rails.logger.info("POSTING TO SUPPLIER")
 
-  def set_resolution_tag(topic, tag_name)
-    # if tag is trained reply, remove needs support and add supported and trained_reply
+      url = "https://porter.heartsupport.com/webhooks/supplier"
+      supplier_url = URI(url)
+
+      # make an API call to create a supplier topic
+      Net::HTTP.post_form(
+        supplier_url,
+        topic_id: topic_id,
+        supported: supported,
+        username: username,
+        category_id: category_id,
+        closed: closed
+      )
+    end
   end
 
   module Tags
     PLATFORM_TOPICS_CATEGORIES = [77, 87, 102, 106, 85, 89]
     ASK_CATEGORIES = [67, 89, 4]
+    def self.process_tags(topic_tag)
+      # when video reply tag is added
+      #
+      #when user-selected tag is added
+      #
+      #
+      #when admin selected tag is added
+      #
+      #
+    end
 
     def self.tag_video_reply(topic_tag)
       video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
