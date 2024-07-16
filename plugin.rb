@@ -25,7 +25,7 @@ after_initialize do
 
   # after topic tag is created, check if it's a video reply tag
   ::TopicTag.class_eval do
-    after_create { HeartSupport::Tags.tag_video_reply(self) }
+    after_create { HeartSupport::Tags.process_tags(self) }
   end
 
   # after topic is created, add listening tag if platform topic

@@ -378,61 +378,26 @@ module HeartSupport
     PLATFORM_TOPICS_CATEGORIES = [77, 87, 102, 106, 85, 89]
     ASK_CATEGORIES = [67, 89, 4]
     def self.process_tags(topic_tag)
+      topic = Topic.find(topic_tag.topic_id)
       # when video reply tag is added
+      video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
+      if topic_tag.tag_id == video_reply_tag.id
+        # remove the needs support tag
+        HeartSupport.remove_topic_tags(topic, "Needs-Support")
+
+        # add the suffient words tag
+        HeartSupport.add_topic_tags(topic, "Sufficient-Words")
+      end
       #
       #when user-selected tag is added
-      #
-      #
+      user_selected_tag = Tag.find_or_create_by(name: "User-Selected")
+      # set the resolution tag as user selected
+      HeartSupport.set_resolution_tag(topic, "User-Selected")
+
       #when admin selected tag is added
+      admin_selected_tag = Tag.find_or_create_by(name: "Admin-Selected")
+      HeartSupport.set_resolution_tag(topic, "Admin-Selected")
       #
-      #
-    end
-
-    def self.tag_video_reply(topic_tag)
-      video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
-      needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
-      supported_tag = Tag.find_or_create_by(name: "Supported")
-      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
-      sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
-
-      if topic_tag.tag_id == video_reply_tag.id
-        topic = Topic.find_by(id: topic_tag.topic_id)
-        topic.tags.delete needs_support_tag
-        # changed implementation & not adding supported tag when video-reply tag is added
-        # topic.tags << supported_tag unless topic.tags.include?(supported_tag)
-        unless topic.tags.include?(sufficient_words_tag)
-          topic.tags << sufficient_words_tag
-        end
-        topic.save!
-
-        if ASK_CATEGORIES.include?(topic.category_id)
-          # send user follow up message
-          require_dependency "post_creator"
-          system_user = User.find_by(username: "system")
-
-          message_text =
-            "Hi #{topic.user.username}, \n" \
-              "On this topic you posted, did you get the support you needed? \n " \
-              "#{topic.url} \n" \
-              "Reply to this message with YES if you feel supported, or NO if you don't."
-
-          dm_params = {
-            title: "Follow Up on Your Recent Post",
-            raw: message_text,
-            archetype: Archetype.private_message,
-            target_usernames: [topic.user.username],
-            custom_fields: {
-              ref_topic_id: topic.id
-            }
-          }
-          PostCreator.create!(system_user, dm_params)
-          topic.custom_fields["asked_user"] = "true"
-          unless topic.tags.include?(asked_user_tag)
-            topic.tags << asked_user_tag
-          end
-          topic.save!
-        end
-      end
     end
 
     def self.tag_platform_topic(topic)
