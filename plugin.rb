@@ -12,14 +12,12 @@ after_initialize do
 
   # on discourse status update to closed or invisible, remove the needs support tag
   DiscourseEvent.on(:topic_status_updated) do |topic, status, enabled|
-    needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
+    if status == "closed" && topic.closed
+      HeartSupport.remove_topic_tags(topic, "Needs-Support")
+    end
 
-    if topic.tags.include?(needs_support_tag)
-      topic.tags.delete needs_support_tag if status == "closed" && topic.closed
-
-      if status == "visible" && !topic.visible
-        topic.tags.delete needs_support_tag
-      end
+    if status == "visible" && !topic.visible
+      HeartSupport.remove_topic_tags(topic, "Needs-Support")
     end
   end
 
@@ -50,21 +48,15 @@ after_initialize do
     every 1.day
 
     def execute(args)
-      needs_support_tag = Tag.find_or_create_by(name: "Needs-Support")
       supported_tag = Tag.find_or_create_by(name: "Supported")
-      asked_user_tag = Tag.find_or_create_by(name: "Asked-User")
-      staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
-      sufficient_words_tag = Tag.find_or_create_by(name: "Sufficient-Words")
       video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
 
       # change the query for topics to be escalated based on create date instead of last_posted_at 20/02/24
+      #
+      reference_date = (14.days.ago.beginning_of_day..14.days.ago.end_of_day)
       topics =
         Topic
-          .where(
-            "topics.created_at BETWEEN ? AND ?",
-            14.days.ago.beginning_of_day,
-            14.days.ago.end_of_day
-          )
+          .where(created_at: reference_date)
           .where("topics.archetype = ?", "regular")
           .where.not(
             id: TopicTag.select(:topic_id).where(tag_id: supported_tag.id)
@@ -73,39 +65,35 @@ after_initialize do
           .where(deleted_at: nil)
 
       topics.each do |topic|
-        topic.tags.delete needs_support_tag
-        topic.tags.delete asked_user_tag
+        HeartSupport.remove_topic_tags(topic, "Needs-Support")
+        HeartSupport.remove_topic_tags(topic, "Asked-User")
 
         word_count =
           topic.posts.where.not(user_id: topic.user_id).sum(:word_count)
 
         # add the supported tag
         if word_count >= SUPPORT_LIMIT
-          topic.tags << supported_tag unless topic.tags.include?(supported_tag)
+          # add supported tag
+          HeartSupport.add_topic_tags(topic, "Supported")
+          # add sufficient words tag
+          HeartSupport.set_resolution_tag(topic, "Sufficient-Words")
           topic.custom_fields["supported"] = true
-          unless topic.tags.include?(sufficient_words_tag)
-            topic.tags << sufficient_words_tag
-          end
         elsif topic.tags.include?(video_reply_tag)
-          # changed implementation to only add sufficient words tag if the topic has a video reply tag 20/02/24
-          # topic.tags << supported_tag unless topic.tags.include?(supported_tag)
-          # topic.custom_fields["supported"] = true
-          unless topic.tags.include?(sufficient_words_tag)
-            topic.tags << sufficient_words_tag
-          end
+          topic.custom_fields["supported"] = true
+          HeartSupport.set_resolution_tag(topic, "Sufficient-Words")
+          # add supported tag
+          HeartSupport.add_topic_tags(topic, "Supported")
         else
           if SUPPORT_CATEGORIES.include?(topic.category_id) && topic.visible &&
                !topic.closed
-            unless topic.tags.include?(staff_escalation_tag)
-              topic.tags << staff_escalation_tag
-              if topic.tags.include?(asked_user_tag)
-                topic.tags.delete asked_user_tag
-              end
-            end
+            #  add insuffficient words tag
+            HeartSupport.set_resolution_tag(topic, "Insufficient")
+            # remove the ask user tag
+            HeartSupport.remove_topic_tags(topic, "Asked-User")
           end
         end
 
-        topic.save!
+        topic.save
 
         push_topic_to_supplier(topic)
       end
@@ -141,7 +129,7 @@ after_initialize do
 
       topics =
         Topic
-          .where("topics.created_at BETWEEN ? AND ?", 14.days.ago, 24.hours.ago)
+          .where(created_at: 14.days.ago..24.hours.ago)
           .where("topics.archetype = ?", "regular")
           .where("topics.posts_count > ?", 1)
           .where(category_id: ASK_CATEGORIES)
@@ -220,9 +208,10 @@ after_initialize do
           }
         }
         PostCreator.create!(system_user, dm_params)
+        HeartSupport.add_topic_tags(topic, "Asked-User")
         topic.custom_fields["asked_user"] = "true"
-        topic.tags << asked_user_tag unless topic.tags.include?(asked_user_tag)
-        topic.save!
+
+        topic.save
       end
     end
   end

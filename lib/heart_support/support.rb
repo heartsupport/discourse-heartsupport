@@ -19,32 +19,46 @@ module HeartSupport
     if forum_tag
       tag_name = forum_tag[:tag]
       priority = forum_tag[:priority]
+      new_tag = Tag.find_or_create_by(name: tag_name)
 
       # find all tags with lower prioty and remove them
       lower_priority_tags =
         HeartSupport::RESOLUTION_HIERARCHY.select do |tag|
           tag[:priority] < priority
         end
-      lower_priority_tags.each do |tag|
-        the_tag = Tag.find_by(name: tag[:tag])
-        if topic.tags.include?(the_tag)
-          topic.tags.delete(Tag.find_by(name: tag[:tag]))
-        end
-      end
+
+      lower_priority_tag_names = lower_priority_tags.map { |tag| tag[:tag] }
 
       higher_priority_tags =
         HeartSupport::RESOLUTION_HIERARCHY.select do |tag|
           tag[:priority] > priority
         end
 
-      if higher_priority_tags.blank?
-        # add the tag
-        the_tag = Tag.find_or_create_by(name: tag_name)
-        topic.tags << the_tag unless topic.tags.include?(the_tag)
-      end
+      higher_priority_tag_names = higher_priority_tags.map { |tag| tag[:tag] }
 
-      # save the topic
-      topic.save
+      # if there are lower priority tags on the topic, remove them and add the new tag
+      if topic.tags.where(name: lower_priority_tag_names).present?
+        lower_priority_tags.each do |tag|
+          the_tag = Tag.find_or_create_by(name: tag[:tag])
+          if topic.tags.include?(the_tag)
+            topic.tags.delete(Tag.find_by(name: tag[:tag]))
+          end
+        end
+
+        # # add the tag
+        if topic.tags.exclude?(new_tag)
+          topic.tags << new_tag
+          topic.save
+        end
+      elsif topic.tags.where(name: higher_priority_tag_names).present?
+        # do nothing
+      else
+        # # add the tag
+        if topic.tags.exclude?(new_tag)
+          topic.tags << new_tag
+          topic.save
+        end
+      end
     end
   end
 
@@ -86,8 +100,8 @@ module HeartSupport
         case user_message
         when "yes"
           if ref_topic
-            # remove staff escalation tag
-            HeartSupport.remove_topic_tags(ref_topic, "Staff-Escalation")
+            # # remove staff escalation tag
+            # HeartSupport.remove_topic_tags(ref_topic, "Staff-Escalation")
             #
             # remove asked user tag
             HeartSupport.remove_topic_tags(ref_topic, "Asked-User")
@@ -122,14 +136,14 @@ module HeartSupport
             # remove the supported tag
             HeartSupport.remove_topic_tags(ref_topic, "Supported")
 
-            # add staff escalation tag
-            HeartSupport.add_topic_tags(ref_topic, "Staff-Escalation")
+            # # add staff escalation tag
+            # HeartSupport.add_topic_tags(ref_topic, "Staff-Escalation")
 
             # remove the asked user tag
             HeartSupport.remove_topic_tags(ref_topic, "Asked-User")
 
             # add resolution tag as user answered no
-            HeartSupport.add_resolution_tag(ref_topic, "User-Answered-No")
+            HeartSupport.set_resolution_tag(ref_topic, "User-Answered-No")
 
             ref_topic.custom_fields["staff_escalation"] = true
             ref_topic.save!
@@ -206,7 +220,8 @@ module HeartSupport
     def self.update_tags(post)
       topic = post.topic
       user = post.user
-      if user.staff?
+      if STAFF_GROUPS.include?(user.primary_group_id) &&
+           topic.tags.include?(staff_escalation_tag)
         # remove the staff escalation tag
         HeartSupport.remove_topic_tags(topic, "Staff-Escalation")
 
@@ -239,6 +254,7 @@ module HeartSupport
     end
 
     def self.process_post(post)
+      supported_tag = Tag.find_or_create_by(name: "Supported")
       topic = post.topic
       category_id = topic.category_id
       user = post.user
@@ -329,7 +345,7 @@ module HeartSupport
       )
     end
 
-    def send_discourse_webhook(
+    def self.send_discourse_webhook(
       topic_id,
       supported,
       newly_supported,
@@ -349,7 +365,7 @@ module HeartSupport
       )
     end
 
-    def send_supplier_webhook(
+    def self.send_supplier_webhook(
       topic_id,
       supported,
       username,
@@ -381,6 +397,9 @@ module HeartSupport
       topic = Topic.find(topic_tag.topic_id)
       # when video reply tag is added
       video_reply_tag = Tag.find_or_create_by(name: "Video-Reply")
+      user_selected_tag = Tag.find_or_create_by(name: "User-Selected")
+      admin_selected_tag = Tag.find_or_create_by(name: "Admin-Selected")
+
       if topic_tag.tag_id == video_reply_tag.id
         # remove the needs support tag
         HeartSupport.remove_topic_tags(topic, "Needs-Support")
@@ -390,24 +409,40 @@ module HeartSupport
       end
       #
       #when user-selected tag is added
-      user_selected_tag = Tag.find_or_create_by(name: "User-Selected")
       # set the resolution tag as user selected
-      HeartSupport.set_resolution_tag(topic, "User-Selected")
+      if topic_tag.tag_id == user_selected_tag.id
+        # resolve tags
+        HeartSupport::Tag.resolve_tags(topic, "User-Selected")
+      end
 
       #when admin selected tag is added
-      admin_selected_tag = Tag.find_or_create_by(name: "Admin-Selected")
-      HeartSupport.set_resolution_tag(topic, "Admin-Selected")
-      #
+      if topic_tag.tag_id == admin_selected_tag.id
+        # resolve tags
+        HeartSupport::Tag.resolve_tags(topic, "Admin-Selected")
+      end
     end
 
     def self.tag_platform_topic(topic)
-      need_listening_ear_tag = Tag.find_or_create_by(name: "Need-Listening-Ear")
-
       if PLATFORM_TOPICS_CATEGORIES.include?(topic.category_id)
-        unless topic.tags.include?(need_listening_ear_tag)
-          topic.tags << need_listening_ear_tag
+        HeartSupport.add_topic_tags(topic, "Need-Listening-Ear")
+      end
+    end
+
+    def self.resolve_tags(topic, tag_name)
+      forum_tag =
+        HeartSupport::RESOLUTION_HIERARCHY.find { |tag| tag[:tag] == tag_name }
+      priority = forum_tag[:priority]
+      lower_priority_tags =
+        HeartSupport::RESOLUTION_HIERARCHY.select do |tag|
+          tag[:priority] < priority
         end
-        topic.save!
+
+      lower_priority_tags.each do |tag|
+        the_tag = Tag.find_by(name: tag[:tag])
+        if topic.tags.include?(the_tag)
+          topic.tags.delete(Tag.find_by(name: tag[:tag]))
+        end
+        topic.save
       end
     end
   end
