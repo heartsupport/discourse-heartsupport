@@ -218,6 +218,7 @@ module HeartSupport
     end
 
     def self.update_tags(post)
+      staff_escalation_tag = Tag.find_or_create_by(name: "Staff-Escalation")
       topic = post.topic
       user = post.user
       if STAFF_GROUPS.include?(user.primary_group_id) &&
@@ -294,7 +295,7 @@ module HeartSupport
 
             # add supported tag
             # set resolution tag as supported
-            HeartSupport.set_resolution_tag(topic, "Supported")
+            HeartSupport.add_topic_tags(topic, "Supported")
             newly_supported = true
             supported = true
             topic.custom_fields["supported"] = true
@@ -308,6 +309,7 @@ module HeartSupport
             if user.primary_group_id == 73 || user.primary_group_id == 42
               # set the trained replier tag
               HeartSupport.set_resolution_tag(topic, "Trained-Reply")
+              HeartSupport.add_topic_tags(topic, "Supported")
             end
 
             # if repler is a SWAT member and the second then set trained replier tag too
@@ -321,8 +323,30 @@ module HeartSupport
               if swat_repliers >= 2
                 # set the trained replier tag
                 HeartSupport.set_resolution_tag(topic, "Trained-Reply")
+                HeartSupport.add_topic_tags(topic, "Supported")
               end
             end
+          end
+
+          # when the text contains a loom link, add a video reply tag, and sufficient words tag, supported
+          # remove staff escalation tag if exists
+          if post.raw.include?("https://www.loom.com/")
+            # add video reply tag
+            HeartSupport.add_topic_tags(topic, "Video-Reply")
+
+            # add sufficient words tag
+            HeartSupport.set_resolution_tag(topic, "Sufficient-Words")
+
+            # add supported tag
+            HeartSupport.add_topic_tags(topic, "Supported")
+
+            # remove staff escalation tag
+            HeartSupport.remove_topic_tags(topic, "Staff-Escalation")
+
+            newly_supported = true
+            supported = true
+            topic.custom_fields["supported"] = true
+            topic.save
           end
         end
       end

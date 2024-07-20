@@ -349,23 +349,17 @@ RSpec.describe HeartSupport::Support, type: :model do
       )
     end
 
-    before do
-      puts "private message: #{post.inspect}"
-      puts "topic: #{pt_topic.inspect}"
-    end
+    before {}
 
     context "when the topic is a private message" do
       context "when the respose is yes" do
         before do
-          puts "dm_id: #{post.topic_id}"
-          puts "user_id: #{user.id}"
           dm =
             Post.create!(
               topic_id: post.topic_id,
               user_id: pt_topic.user.id,
               raw: "yes"
             )
-          puts "dm: #{dm.errors.full_messages}"
         end
 
         it "add supported, removes asked user tag and add user-answered-yes" do
@@ -379,15 +373,12 @@ RSpec.describe HeartSupport::Support, type: :model do
 
       context "when the response is no" do
         before do
-          puts "dm_id: #{post.topic_id}"
-          puts "user_id: #{user.id}"
           dm =
             Post.create!(
               topic_id: post.topic_id,
               user_id: pt_topic.user.id,
               raw: "no"
             )
-          puts "dm: #{dm.errors.full_messages}"
         end
 
         it "removes supported, add user-answered-no tag" do
@@ -401,9 +392,160 @@ RSpec.describe HeartSupport::Support, type: :model do
     end
   end
 
-  describe "#check_responses" do
+  describe "#update_tags" do
+    let!(:sufficient_words_tag) do
+      Tag.find_or_create_by(name: "Sufficient-Words")
+    end
+    let!(:staff_escalation_tag) do
+      Tag.find_or_create_by(name: "Staff-Escalation")
+    end
+    let!(:topic) do
+      Fabricate(
+        :topic,
+        category_id: 67,
+        archetype: "regular",
+        user: Fabricate(:active_user)
+      )
+    end
+
+    before do
+      topic.tags << staff_escalation_tag
+      topic.save!
+      topic.reload
+
+      Post.create!(
+        user_id: Fabricate(:user, primary_group_id: 73).id,
+        raw: ("Hello ") * 20,
+        topic_id: topic.id
+      )
+    end
+
+    it "removes the staff escalation tag" do
+      expect(topic.reload.tags.include?(staff_escalation_tag)).to eq(false)
+    end
   end
 
   describe "#process_posts" do
+    let!(:needs_support_tag) { Tag.find_or_create_by(name: "Needs-Support") }
+    context "when first post" do
+      let!(:topic) do
+        Fabricate(
+          :topic,
+          category_id: 67,
+          archetype: "regular",
+          user: Fabricate(:active_user)
+        )
+      end
+      it "adds a needs support tag" do
+        expect(topic.tags).to be_empty
+        Post.create!(
+          user_id: Fabricate(:user).id,
+          raw: ("Hello ") * 20,
+          topic_id: topic.id
+        )
+        expect(topic.reload.tags.include?(needs_support_tag)).to eq(true)
+      end
+    end
+    context "when not first post" do
+      let!(:needs_support_tag) { Tag.find_or_create_by(name: "Needs-Support") }
+      let!(:supported_tag) { Tag.find_or_create_by(name: "Supported") }
+      let!(:sufficient_words_tag) do
+        Tag.find_or_create_by(name: "Sufficient-Words")
+      end
+      let!(:staff_escalation_tag) do
+        Tag.find_or_create_by(name: "Staff-Escalation")
+      end
+      let!(:video_reply_tag) { Tag.find_or_create_by(name: "Video-Reply") }
+      let!(:topic) do
+        Fabricate(
+          :topic,
+          category_id: 67,
+          archetype: "regular",
+          user: Fabricate(:active_user)
+        )
+      end
+      before do
+        Post.create!(
+          user_id: Fabricate(:user).id,
+          raw: ("Hello ") * 20,
+          topic_id: topic.id
+        )
+      end
+      context "when word count is below limit" do
+        before do
+          Post.create!(
+            user_id: Fabricate(:user).id,
+            raw: ("Hello ") * 20,
+            topic_id: topic.id
+          )
+        end
+        context "when replier is group member" do
+          before do
+            Post.create!(
+              user_id: Fabricate(:user, primary_group_id: 73).id,
+              raw: ("Hello ") * 20,
+              topic_id: topic.id
+            )
+          end
+          it "adds trained reply tag and supported" do
+            expect(topic.reload.tags.include?(needs_support_tag)).to eq(false)
+            expect(topic.reload.tags.include?(supported_tag)).to eq(true)
+          end
+        end
+        context "when 2 swat members reply" do
+          before do
+            Post.create!(
+              user_id: Fabricate(:user, primary_group_id: 54).id,
+              raw: ("Hello ") * 20,
+              topic_id: topic.id
+            )
+            Post.create!(
+              user_id: Fabricate(:user, primary_group_id: 54).id,
+              raw: ("Hello ") * 20,
+              topic_id: topic.id
+            )
+          end
+          it "adds trained reply tag and supported" do
+            expect(topic.reload.tags.include?(needs_support_tag)).to eq(false)
+            expect(topic.reload.tags.include?(supported_tag)).to eq(true)
+          end
+        end
+      end
+      context "when word count is above limit" do
+        before do
+          Post.create!(
+            user_id: Fabricate(:user).id,
+            raw: ("Hello, this is a test ") * 200,
+            topic_id: topic.id
+          )
+        end
+        it "adds sufficient words tags and supported tag" do
+          expect(topic.reload.tags.include?(needs_support_tag)).to eq(false)
+          expect(topic.reload.tags.include?(supported_tag)).to eq(true)
+          expect(topic.reload.tags.include?(sufficient_words_tag)).to eq(true)
+        end
+      end
+
+      context "when video reply tag is present" do
+        before do
+          topic.tags << staff_escalation_tag
+          topic.save!
+          topic.reload
+
+          Post.create!(
+            user_id: Fabricate(:user).id,
+            raw: ("Hello ") * 20 + "https://www.loom.com/share",
+            topic_id: topic.id
+          )
+        end
+        it "adds sufficient words tags and supported tag" do
+          expect(topic.reload.tags.include?(needs_support_tag)).to eq(false)
+          expect(topic.reload.tags.include?(staff_escalation_tag)).to eq(false)
+          expect(topic.reload.tags.include?(supported_tag)).to eq(true)
+          expect(topic.reload.tags.include?(sufficient_words_tag)).to eq(true)
+          expect(topic.reload.tags.include?(video_reply_tag)).to eq(true)
+        end
+      end
+    end
   end
 end
