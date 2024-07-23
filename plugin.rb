@@ -63,6 +63,7 @@ after_initialize do
           )
           .where.not(closed: true)
           .where(deleted_at: nil)
+          .where(category_id: SUPPORT_CATEGORIES)
 
       topics.each do |topic|
         HeartSupport.remove_topic_tags(topic, "Needs-Support")
