@@ -32,6 +32,7 @@ RSpec.describe HeartSupport::Support, type: :model do
     let!(:sufficient_Words_tag) do
       Tag.find_or_create_by(name: "Sufficient-Words")
     end
+    let!(:admin_selected_tag) { Tag.find_or_create_by(name: "Admin-Selected") }
 
     context "when tag is low in priority" do
       before do
@@ -57,9 +58,9 @@ RSpec.describe HeartSupport::Support, type: :model do
 
       it "removes the trained reply tag and adds the admin selected tag" do
         expect(topic.tags.include?(trained_reply_tag)).to eq(true)
-        HeartSupport.set_resolution_tag(topic, "Sufficient-Words")
+        HeartSupport.set_resolution_tag(topic, "Admin-Selected")
         expect(topic.reload.tags.include?(trained_reply_tag)).to eq(false)
-        expect(topic.reload.tags.include?(sufficient_Words_tag)).to eq(true)
+        expect(topic.reload.tags.include?(admin_selected_tag)).to eq(true)
       end
     end
   end
@@ -546,6 +547,81 @@ RSpec.describe HeartSupport::Support, type: :model do
           expect(topic.reload.tags.include?(video_reply_tag)).to eq(true)
         end
       end
+    end
+  end
+
+  describe "Tags Module" do
+    let!(:supported_tag) { Tag.find_or_create_by(name: "Supported") }
+    let!(:user_selected_tag) { Tag.find_or_create_by(name: "User-Selected") }
+    let!(:need_listening_ear_tag) do
+      Tag.find_or_create_by(name: "Need-Listening-Ear")
+    end
+    let!(:admin_selected_tag) { Tag.find_or_create_by(name: "Admin-Selected") }
+    let!(:video_reply_tag) { Tag.find_or_create_by(name: "Video-Reply") }
+
+    describe "Tags#process_tags" do
+      let!(:topic) do
+        Fabricate(:topic, user: Fabricate(:active_user), category_id: 102)
+      end
+
+      context "when user selected tags added" do
+        before do
+          topic.tags << user_selected_tag
+          topic.save!
+          topic.reload
+        end
+
+        it "adds the supported tag and user-selected tag" do
+          expect(topic.reload.tags.include?(user_selected_tag)).to eq(true)
+          expect(topic.reload.tags.include?(supported_tag)).to eq(true)
+        end
+      end
+
+      context "when admin selected tags added" do
+        before do
+          topic.tags << admin_selected_tag
+          topic.save!
+          topic.reload
+        end
+
+        it "adds the supported tag and user-selected tag" do
+          expect(topic.reload.tags.include?(admin_selected_tag)).to eq(true)
+          expect(topic.reload.tags.include?(supported_tag)).to eq(true)
+        end
+      end
+
+      context "when video tags added" do
+        before do
+          topic.tags << video_reply_tag
+          topic.save!
+          topic.reload
+        end
+
+        it "adds the supported tag and user-selected tag" do
+          expect(topic.reload.tags.include?(video_reply_tag)).to eq(true)
+          expect(topic.reload.tags.include?(supported_tag)).to eq(true)
+        end
+      end
+    end
+
+    describe "Tags#tag_platform_topics" do
+      let!(:topic) do
+        Fabricate(:topic, user: Fabricate(:active_user), category_id: 102)
+      end
+
+      before do
+        # topic.tags << user_selected_tag
+        # topic.save!
+        # topic.reload
+      end
+
+      it "add the listeninig ear tag" do
+        # HeartSupport::Tags.tag_platform_topic(topic)
+        expect(topic.reload.tags.include?(need_listening_ear_tag)).to eq(true)
+      end
+    end
+
+    describe "Tags#resolve_tags" do
     end
   end
 end
