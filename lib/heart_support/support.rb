@@ -316,14 +316,14 @@ module HeartSupport
             end
 
             # if repler is a SWAT member and the second then set trained replier tag too
-            if user.primary_group_id == 54
-              swat_repliers =
+            if user.primary_group_id == 54 || user.primary_group_id == 76
+              trained_repliers =
                 topic
                   .posts
                   .joins(:user)
-                  .where(users: { primary_group_id: 54 })
+                  .where(users: { primary_group_id: [54, 76] })
                   .count
-              if swat_repliers >= 2
+              if trained_repliers >= 2
                 # set the trained replier tag
                 HeartSupport.set_resolution_tag(topic, "Trained-Reply")
                 HeartSupport.add_topic_tags(topic, "Supported")

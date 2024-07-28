@@ -501,7 +501,7 @@ RSpec.describe HeartSupport::Support, type: :model do
               topic_id: topic.id
             )
             Post.create!(
-              user_id: Fabricate(:user, primary_group_id: 54).id,
+              user_id: Fabricate(:user, primary_group_id: 76).id,
               raw: ("Hello ") * 20,
               topic_id: topic.id
             )
