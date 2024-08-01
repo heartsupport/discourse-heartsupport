@@ -17,9 +17,17 @@ RSpec.describe HeartSupport::Support, type: :model do
     ).to_return(status: 200, body: "", headers: {})
   end
 
+  let(:webhook_stub) do
+    stub_request(
+      :post,
+      %r{https://porter.heartsupport.com/webhooks/topic_tags}
+    ).to_return(status: 200, body: "", headers: {})
+  end
+
   before do
     stub_supplier
     stub_hsapps
+    webhook_stub
   end
   describe "#set_resolution_tag" do
     let!(:user) { Fabricate(:active_user) }
@@ -546,6 +554,35 @@ RSpec.describe HeartSupport::Support, type: :model do
           expect(topic.reload.tags.include?(video_reply_tag)).to eq(true)
         end
       end
+    end
+  end
+
+  describe "tags#delete_topic_tags" do
+    let!(:needs_support_tag) { Tag.find_or_create_by(name: "Needs-Support") }
+    let!(:topic) do
+      Fabricate(
+        :topic,
+        category_id: 67,
+        archetype: "regular",
+        user: Fabricate(:active_user)
+      )
+    end
+
+    before do
+      topic.tags << needs_support_tag
+      topic.save!
+      topic.reload
+    end
+
+    it "sends webhook when tags are added to topic" do
+      expect(topic.tags.include?(needs_support_tag)).to eq(true)
+      expect(webhook_stub).to have_been_requested
+    end
+
+    it "send a webhook when tags are removed from topic" do
+      topic.tags.delete(needs_support_tag)
+      expect(topic.tags.include?(needs_support_tag)).to eq(false)
+      expect(webhook_stub).to have_been_requested.times(2)
     end
   end
 end

@@ -444,6 +444,61 @@ module HeartSupport
         # resolve tags
         HeartSupport::Tag.resolve_tags(topic, "Admin-Selected")
       end
+
+      # send webhook for topic tag creation
+      send_webhook(
+        "created",
+        topic_tag.topic_id,
+        topic_tag.tag_id,
+        topic_tag.tag.name,
+        topic_tag.created_at,
+        nil
+      )
+    end
+
+    def self.delete_topic_tags(topic_tag)
+      tag_id = topic_tag.tag_id
+      tag = Tag.find(tag_id)
+
+      if tag
+        # send webhook for deleting
+        send_webhook(
+          "deleted",
+          topic_tag.topic_id,
+          tag.id,
+          tag.name,
+          topic_tag.created_at,
+          Time.now
+        )
+      end
+    end
+
+    def self.send_webhook(
+      event,
+      topic_id,
+      tag_id,
+      tag_name,
+      created_at,
+      deleted_at
+    )
+      url = "https://porter.heartsupport.com/webhooks/topic_tags"
+      uri = URI(url)
+
+      res =
+        Net::HTTP.post_form(
+          uri,
+          event: event,
+          topic_id: topic_id,
+          tag_id: tag_id,
+          tag_name: tag_name,
+          created_at: created_at,
+          deleted_at: deleted_at
+        )
+
+      status = res.code
+      Rails.logger.info(
+        "topic tag webhook status: #{status} for #{tag_name} and #{event} , topic_id: #{topic_id}"
+      )
     end
 
     def self.tag_platform_topic(topic)

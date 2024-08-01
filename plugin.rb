@@ -26,6 +26,11 @@ after_initialize do
     after_create { HeartSupport::Tags.process_tags(self) }
   end
 
+  # after deleting a topic tag, send webhook
+  ::TopicTag.class_eval do
+    after_destroy { HeartSupport::Tags.delete_topic_tags(self) }
+  end
+
   # after topic is created, add listening tag if platform topic
   ::Topic.class_eval do
     after_create { HeartSupport::Tags.tag_platform_topic(self) }
