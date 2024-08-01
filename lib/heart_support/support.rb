@@ -4,8 +4,8 @@ module HeartSupport
     { tag: "User-Selected", priority: 6 },
     { tag: "User-Answered-No", priority: 5 },
     { tag: "Admin-Selected", priority: 4 },
-    { tag: "Sufficient-Words", priority: 3 },
-    { tag: "Trained-Reply", priority: 2 },
+    { tag: "Trained-Reply", priority: 3 },
+    { tag: "Sufficient-Words", priority: 2 },
     { tag: "Insufficient", priority: 1 },
     { tag: "Needs-Support", priority: 0 }
   ]
@@ -281,8 +281,11 @@ module HeartSupport
 
         supported = topic.tags.include?(supported_tag)
         # # when already supported
-        # if supported
-        # end
+        if supported
+          if word_count > SUPPORT_LIMIT
+            HeartSupport.set_resolution_tag(topic, "Sufficient-Words")
+          end
+        end
         #
         #when not supported
         if !supported
@@ -313,14 +316,14 @@ module HeartSupport
             end
 
             # if repler is a SWAT member and the second then set trained replier tag too
-            if user.primary_group_id == 54
-              swat_repliers =
+            if user.primary_group_id == 54 || user.primary_group_id == 76
+              trained_repliers =
                 topic
                   .posts
                   .joins(:user)
-                  .where(users: { primary_group_id: 54 })
+                  .where(users: { primary_group_id: [54, 76] })
                   .count
-              if swat_repliers >= 2
+              if trained_repliers >= 2
                 # set the trained replier tag
                 HeartSupport.set_resolution_tag(topic, "Trained-Reply")
                 HeartSupport.add_topic_tags(topic, "Supported")
@@ -424,10 +427,17 @@ module HeartSupport
       user_selected_tag = Tag.find_or_create_by(name: "User-Selected")
       admin_selected_tag = Tag.find_or_create_by(name: "Admin-Selected")
 
-      if topic_tag.tag_id == video_reply_tag.id
+      if topic_tag.tag_id == video_reply_tag.id ||
+           topic_tag.tag_id == user_selected_tag.id ||
+           topic_tag.tag_id == admin_selected_tag.id
         # remove the needs support tag
         HeartSupport.remove_topic_tags(topic, "Needs-Support")
 
+        # add supported
+        HeartSupport.add_topic_tags(topic, "Supported")
+      end
+
+      if topic_tag.tag_id == video_reply_tag.id
         # add the suffient words tag
         HeartSupport.add_topic_tags(topic, "Sufficient-Words")
       end
@@ -436,13 +446,13 @@ module HeartSupport
       # set the resolution tag as user selected
       if topic_tag.tag_id == user_selected_tag.id
         # resolve tags
-        HeartSupport::Tag.resolve_tags(topic, "User-Selected")
+        HeartSupport::Tags.resolve_tags(topic, "User-Selected")
       end
 
       #when admin selected tag is added
       if topic_tag.tag_id == admin_selected_tag.id
         # resolve tags
-        HeartSupport::Tag.resolve_tags(topic, "Admin-Selected")
+        HeartSupport::Tags.resolve_tags(topic, "Admin-Selected")
       end
 
       # send webhook for topic tag creation
@@ -526,3 +536,6 @@ module HeartSupport
     end
   end
 end
+
+# Notes
+# Change priority to place sufficient words below trained reply
