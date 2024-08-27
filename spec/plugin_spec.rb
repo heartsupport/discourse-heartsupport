@@ -321,6 +321,13 @@ RSpec.describe HeartSupport::Support, type: :model do
         end
       end
     end
+
+    describe "#UpdateUserBadgesJob" do
+      # it "queries the users" do
+      #   expect(ActiveRecord::Base.connection).to receive(:execute)
+      #   ::Jobs::UpdateUserBadgesJob.new.execute({})
+      # end
+    end
   end
 
   describe "#check_responses" do

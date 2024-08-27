@@ -221,4 +221,75 @@ after_initialize do
       end
     end
   end
+
+  # add a job to update user badges
+  class ::Jobs::UpdateUserBadges < Jobs::Scheduled
+    BADGE_THRESHOLDS = [
+      { id: 212, threshold: 10 },
+      { id: 214, threshold: 50 },
+      { id: 215, threshold: 75 },
+      { id: 216, threshold: 100 },
+      { id: 218, threshold: 150 },
+      { id: 219, threshold: 200 },
+      { id: 220, threshold: 300 },
+      { id: 221, threshold: 500 },
+      { id: 222, threshold: 1000 }
+    ]
+
+    every 1.day
+
+    def execute(args)
+      # find all users in support groups and active in the last 25 hours
+      sql =
+        "
+          WITH swat_users AS (
+            SELECT DISTINCT
+                user_id
+            FROM
+                group_users
+            WHERE
+                group_id IN (54, 73, 76)
+          )
+          SELECT
+              users.id,
+              users.username,
+              COUNT(DISTINCT posts.id) as reply_count
+
+          FROM
+              users
+              INNER JOIN swat_users ON users.id = swat_users.user_id
+              LEFT JOIN posts ON posts.user_id = users.id AND posts.post_number != 1
+              LEFT JOIN user_badges ON user_badges.user_id = users.id
+              JOIN topics on topics.id = posts.topic_id
+          WHERE
+              users.last_posted_at >= (CURRENT_DATE - INTERVAL '25 Hours' ) AND
+              topics.category_id IN (67,77,78,85,86,87,102,106,89)
+          GROUP BY
+              users.id,
+              users.username
+          ORDER BY
+              reply_count DESC
+        "
+
+      users = ActiveRecord::Base.connection.execute(sql)
+
+      users.each do |user|
+        user_id = user["id"]
+        reply_count = user["reply_count"].to_i
+
+        filtered_badges =
+          BADGE_THRESHOLDS.select { |badge| reply_count >= badge[:threshold] }
+
+        if filtered_badges.present?
+          badge = filtered_badges.max_by { |badge| badge[:threshold] }
+
+          # check if the user does not have the badge already
+          unless UserBadge.exists?(user_id: user_id, badge_id: badge[:id])
+            # puts "Need to add badge #{badge[:id]} to user #{user_id}, #{user["username"]}"
+            UserBadge.create!(user_id: user_id, badge_id: badge[:id])
+          end
+        end
+      end
+    end
+  end
 end
