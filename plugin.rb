@@ -21,6 +21,11 @@ after_initialize do
     end
   end
 
+  # on discourse topic_visible_status_updated, remove the needs support tag
+  DiscourseEvent.on(:topic_visible_status_updated) do |topic, status, enabled|
+    HeartSupport.remove_topic_tags(topic, "Needs-Support") if visible == false
+  end
+
   # after topic tag is created, check if it's a video reply tag
   ::TopicTag.class_eval do
     after_create { HeartSupport::Tags.process_tags(self) }

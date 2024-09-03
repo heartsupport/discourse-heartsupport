@@ -307,7 +307,7 @@ module HeartSupport
           end
 
           # when word counts < 500
-          if word_count < SUPPORT_LIMIT
+          if word_count < SUPPORT_LIMIT && !post.raw.blank?
             # if replier is a staff member or surge-replier, then add trained_replier tag
             if user.primary_group_id == 73 || user.primary_group_id == 42
               # set the trained replier tag
@@ -439,7 +439,7 @@ module HeartSupport
 
       if topic_tag.tag_id == video_reply_tag.id
         # add the suffient words tag
-        HeartSupport.add_topic_tags(topic, "Sufficient-Words")
+        HeartSupport::Tags.resolve_tags(topic, "Sufficient-Words")
       end
       #
       #when user-selected tag is added
@@ -532,6 +532,20 @@ module HeartSupport
           topic.tags.delete(Tag.find_by(name: tag[:tag]))
         end
         topic.save
+      end
+
+      # add the tag if the topic does not have higher priority tags
+      higher_priority_tags =
+        HeartSupport::RESOLUTION_HIERARCHY.select do |tag|
+          tag[:priority] > priority
+        end
+      higher_priority_tag_names = higher_priority_tags.map { |tag| tag[:tag] }
+      unless topic.tags.where(name: higher_priority_tag_names).present?
+        new_tag = Tag.find_or_create_by(name: tag_name)
+        if topic.tags.exclude?(new_tag)
+          topic.tags << new_tag
+          topic.save
+        end
       end
     end
   end

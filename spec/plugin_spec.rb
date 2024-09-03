@@ -241,6 +241,31 @@ RSpec.describe HeartSupport::Support, type: :model do
             end
           end
 
+          context "when user selected tag is added" do
+            before do
+              topic.tags << Tag.find_or_create_by(name: "Sufficient-Words")
+              topic.save!
+              topic.reload
+            end
+
+            it "removes the needs support tag and adds sufficient words, and supported tag" do
+              topic.tags << Tag.find_or_create_by(name: "User-Selected")
+              topic.save!
+              topic.reload
+
+              expect(topic.reload.tags.include?(needs_support_tag)).to eq(false)
+              expect(topic.reload.tags.include?(supported_tag)).to eq(true)
+              expect(topic.reload.tags.include?(sufficient_words_tag)).to eq(
+                false
+              )
+              expect(
+                topic.reload.tags.include?(
+                  Tag.find_or_create_by(name: "User-Selected")
+                )
+              ).to eq(true)
+            end
+          end
+
           context "when word count below limit" do
             let(:insuffficient_tag) do
               Tag.find_or_create_by(name: "Insufficient")
