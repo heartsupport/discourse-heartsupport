@@ -230,6 +230,8 @@ after_initialize do
   # add a job to update user badges
   class ::Jobs::UpdateUserBadges < Jobs::Scheduled
     BADGE_THRESHOLDS = [
+      { id: 211, threshold: 1 },
+      { id: 213, threshold: 25 },
       { id: 212, threshold: 10 },
       { id: 214, threshold: 50 },
       { id: 215, threshold: 75 },
@@ -267,7 +269,7 @@ after_initialize do
               LEFT JOIN user_badges ON user_badges.user_id = users.id
               JOIN topics on topics.id = posts.topic_id
           WHERE
-              users.last_posted_at >= (CURRENT_DATE - INTERVAL '25 Hours' ) AND
+              users.last_posted_at >= (CURRENT_DATE - INTERVAL '30 Days' ) AND
               topics.category_id IN (67,77,78,85,86,87,102,106,89)
           GROUP BY
               users.id,
@@ -286,12 +288,22 @@ after_initialize do
           BADGE_THRESHOLDS.select { |badge| reply_count >= badge[:threshold] }
 
         if filtered_badges.present?
-          badge = filtered_badges.max_by { |badge| badge[:threshold] }
-
-          # check if the user does not have the badge already
-          unless UserBadge.exists?(user_id: user_id, badge_id: badge[:id])
-            # puts "Need to add badge #{badge[:id]} to user #{user_id}, #{user["username"]}"
-            UserBadge.create!(user_id: user_id, badge_id: badge[:id])
+          filtered_badges.each do |badge|
+            unless UserBadge.exists?(user_id: user_id, badge_id: badge[:id])
+              badge =
+                UserBadge.new(
+                  user_id: user_id,
+                  badge_id: badge[:id],
+                  granted_at: Time.now,
+                  granted_by_id: -1
+                )
+              if badge.save
+                puts "Badge #{badge[:id]} added to user #{user_id}, #{user["username"]}"
+              else
+                puts "Error adding badge #{badge[:id]} to user #{user_id}, #{user["username"]}"
+                puts "reason: #{badge.errors.full_messages}"
+              end
+            end
           end
         end
       end
