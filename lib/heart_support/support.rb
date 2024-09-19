@@ -309,7 +309,8 @@ module HeartSupport
           # when word counts < 500
           if word_count < SUPPORT_LIMIT && !post.raw.blank?
             # if replier is a staff member or surge-replier, then add trained_replier tag
-            if user.primary_group_id == 73 || user.primary_group_id == 42
+            if user.primary_group_id == 73 || user.primary_group_id == 42 ||
+                 user.primary_group_id == 77
               # set the trained replier tag
               HeartSupport.set_resolution_tag(topic, "Trained-Reply")
               HeartSupport.add_topic_tags(topic, "Supported")
