@@ -9,6 +9,7 @@
 
 after_initialize do
   require_relative "lib/heart_support/support"
+  require_relative "lib/heart_support/hs_ai"
 
   # on discourse status update to closed or invisible, remove the needs support tag
   DiscourseEvent.on(:topic_status_updated) do |topic, status, enabled|
@@ -101,6 +102,9 @@ after_initialize do
             HeartSupport.set_resolution_tag(topic, "Insufficient")
             # remove the ask user tag
             HeartSupport.remove_topic_tags(topic, "Asked-User")
+
+            # send similar conversation message
+            HeartSupport::HsAi.share_similar_experience(topic)
           end
         end
 
