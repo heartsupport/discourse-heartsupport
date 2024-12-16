@@ -25,7 +25,7 @@ RSpec.describe HeartSupport::HsAi, type: :model do
     }.to_json
   end
   let(:stub_qdrant) do
-    stub_request(:get, %r{http://34.45.99.81:8000/search}).to_return(
+    stub_request(:get, %r{http://34.45.99.81:8080/search}).to_return(
       status: 200,
       body: search_reponse,
       headers: {

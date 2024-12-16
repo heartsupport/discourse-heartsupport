@@ -15,7 +15,7 @@ module HeartSupport
           &.strip
 
       # make a request to the vector db
-      url = URI("http://34.45.99.81:8000/search")
+      url = URI("http://34.45.99.81:8080/search")
       http = Net::HTTP.new(url.host, url.port)
       request = Net::HTTP::Get.new(url)
       request["Content-Type"] = "application/json"
