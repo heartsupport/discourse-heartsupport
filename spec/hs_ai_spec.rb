@@ -68,9 +68,14 @@ RSpec.describe HeartSupport::HsAi, type: :model do
   end
 
   describe ".share_similar_experience" do
+    before do
+      allow(Post).to receive(:create!)
+      allow(User).to receive(:find_by).and_return(system_user)
+    end
     it "sends a experience share" do
       expect(HeartSupport::HsAi).to receive(:formatted_response)
-      expect(HeartSupport::HsAi).to receive(:send_dm)
+      # expect(HeartSupport::HsAi).to receive(:send_dm)
+      expect(Post).to receive(:create!)
       HeartSupport::HsAi.share_similar_experience(topic)
     end
   end

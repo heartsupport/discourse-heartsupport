@@ -41,16 +41,28 @@ module HeartSupport
             # send a formatted response
             user_reply =
               formatted_response(user_question, support_response, tag)
-            title =
-              "Similar Experience Found for topic: #{topic.title} with id: #{topic.id}"
 
-            admin_usernames =
-              User.where(username: %w[NateTriesAgain acaciabengo]).pluck(
-                :username
-              )
+            # title =
+            #   "Similar Experience Found for topic: #{topic.title} with id: #{topic.id}"
+
+            # admin_usernames =
+            #   User.where(username: %w[NateTriesAgain acaciabengo]).pluck(
+            #     :username
+            #   )
 
             # send a message to the user
-            send_dm(admin_usernames, user_reply, title)
+            # send_dm(admin_usernames, user_reply, title)
+
+            # post a reply to the topic
+            user = User.find_by(id: 13_733)
+
+            if user
+              Post.create!(
+                topic_id: topic.id,
+                user_id: User.find_by(username: "system").id,
+                raw: user_reply
+              )
+            end
           end
         end
       else
@@ -61,7 +73,7 @@ module HeartSupport
     def self.formatted_response(user_question, support_response, tag)
       text = <<~TEXT
         Hi,
-        Thanks so much for opening up. We've received your request, and we've notified our volunteer repliers! In the meantime, we wanted to share a request from a #{tag} fan that was similar to yours. They said:
+        Thanks so much for opening up. We wanted to share a request from a #{tag} fan that was similar to yours. They said:
 
         #{user_question}
 
@@ -69,7 +81,7 @@ module HeartSupport
 
         #{support_response}
 
-        Thank you for your courage. We'll reply again soon!
+        Thank you for your courage.
 
         -HeartSupport
       TEXT
