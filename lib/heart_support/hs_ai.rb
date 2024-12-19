@@ -13,6 +13,8 @@ module HsAi
         .gsub(/\s+/, " ")
         &.strip
 
+    post_text = clean_text(post_text)
+
     # make a request to the vector db
     url = URI("http://34.45.99.81:8080/search")
     http = Net::HTTP.new(url.host, url.port)
@@ -100,5 +102,30 @@ module HsAi
     # send DM to repliers
     PostCreator.create!(system_user, dm_params)
     # puts "DM sent to #{usernames} with post id: #{post.id}"
+  end
+
+  def self.clean_text(text)
+    # Define patterns to remove
+    phrases_to_remove = [
+      /this is a topic from instagram. reply as normal, and we will post it to the user on instagram./i,
+      /this is a topic from facebook. reply as normal, and we will post it to the user on instagram./i,
+      /this is a topic from facebook. reply as normal, and we will post it to the user on facebook./i,
+      /this is a topic from twitter. reply as normal, and we will post it to the user on twitter./i,
+      /this is a topic from facebook. reply as normal, and we will post it to the user on youtube./i,
+      /this is a topic from instagram. in order to participate in these conversations you need to/i,
+      /this is a topic from youtube. reply as normal, and we will post it to the user on youtube./i,
+      /belongs to:/i
+    ]
+
+    # Remove all defined phrases
+    phrases_to_remove.each do |pattern|
+      text = text.gsub(pattern, "")
+    end
+
+    # Remove HTTP links
+    text = text.gsub(/https?:\/\/\S+|www\.\S+/, " ")
+    text = text.gsub(/\s+/, " ")
+    test = text&.strip
+    text
   end
 end
