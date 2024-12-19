@@ -96,15 +96,18 @@ after_initialize do
           # add supported tag
           HeartSupport.add_topic_tags(topic, "Supported")
         else
+          puts "topic #{topic.id} does not have enough words"
           if SUPPORT_CATEGORIES.include?(topic.category_id) && topic.visible &&
                !topic.closed
+            puts "topic #{topic.id} is being escalated"
             #  add insuffficient words tag
             HeartSupport.set_resolution_tag(topic, "Insufficient")
             # remove the ask user tag
             HeartSupport.remove_topic_tags(topic, "Asked-User")
 
             # send similar conversation message
-            HeartSupport::HsAi.share_similar_experience(topic)
+            puts "sending similar conversation message"
+            HsAi.share_similar_experience(topic)
           end
         end
 

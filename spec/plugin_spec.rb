@@ -1,6 +1,6 @@
 require "rails_helper"
 require "rspec/mocks"
-
+# require "./lib/heart_support/hs_ai.rb"
 RSpec.describe HeartSupport::Support, type: :model do
   # before each clears the database
   #  # before { allow(HeartSupport).to receive(:set_resolution_tag) }
@@ -267,6 +267,31 @@ RSpec.describe HeartSupport::Support, type: :model do
           end
 
           context "when word count below limit" do
+            let(:search_reponse) do
+              {
+                "results" => [
+                  {
+                    "message" => "I'm feeling really down today",
+                    "support" => [
+                      {
+                        "message" =>
+                          "I'm sorry to hear that. It's okay to feel down sometimes. What's going on?"
+                      }
+                    ]
+                  }
+                ]
+              }.to_json
+            end
+
+            let(:stub_qdrant) do
+              stub_request(:get, %r{http://34.45.99.81:8080/search}).to_return(
+                status: 200,
+                body: search_reponse,
+                headers: {
+                  "Content-Type" => "application/json"
+                }
+              )
+            end
             let(:insuffficient_tag) do
               Tag.find_or_create_by(name: "Insufficient")
             end
@@ -284,12 +309,15 @@ RSpec.describe HeartSupport::Support, type: :model do
                 raw: ("Hello ") * 20,
                 topic_id: topic.id
               )
+
+              stub_qdrant
             end
             it "removes the needs support tag and adds insufficient tag" do
               ::Jobs::RemoveSupportTagJob.new.execute({})
               expect(topic.reload.tags.include?(needs_support_tag)).to eq(false)
               expect(topic.reload.tags.include?(insuffficient_tag)).to eq(true)
               expect(stub_supplier).to have_been_requested.times(3)
+              expect(stub_qdrant).to have_been_requested
             end
           end
         end
