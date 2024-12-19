@@ -24,7 +24,9 @@ module HsAi
     body = JSON.parse(response.body)
 
     if status == 200 || status == "200"
-      similar_question = body["results"]&.first || nil
+      # select one where post is not the same
+      results= body['results'].select {|result| result['post_id'] != topic.posts.first.id}
+      similar_question = results&.first || nil
       if similar_question
         user_question = similar_question["message"] || nil
         support_response = similar_question["support"][0]["message"] || nil
@@ -57,7 +59,7 @@ module HsAi
           if user
             Post.create!(
               topic_id: topic.id,
-              user_id: User.find_by(username: "system").id,
+              user_id: user.id,
               raw: user_reply
             )
           end
