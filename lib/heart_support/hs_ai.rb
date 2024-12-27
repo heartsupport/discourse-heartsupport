@@ -27,7 +27,10 @@ module HsAi
 
     if status == 200 || status == "200"
       # select one where post is not the same
-      results= body['results'].select {|result| result['post_id'] != topic.posts.first.id}
+      results =
+        body["results"].select do |result|
+          result["post_id"] != topic.posts.first.id
+        end
       similar_question = results&.first || nil
       if similar_question
         user_question = similar_question["message"] || nil
@@ -44,26 +47,13 @@ module HsAi
           # send a formatted response
           user_reply = formatted_response(user_question, support_response, tag)
 
-          # title =
-          #   "Similar Experience Found for topic: #{topic.title} with id: #{topic.id}"
-
-          # admin_usernames =
-          #   User.where(username: %w[NateTriesAgain acaciabengo]).pluck(
-          #     :username
-          #   )
-
-          # send a message to the user
-          # send_dm(admin_usernames, user_reply, title)
-
           # post a reply to the topic
           user = User.find_by(id: 13_733)
 
           if user
-            Post.create!(
-              topic_id: topic.id,
-              user_id: user.id,
-              raw: user_reply
-            )
+            post_params = { topic_id: topic.id, raw: user_reply }
+            PostCreator.create(user, post_params)
+            # Post.create!(topic_id: topic.id, user_id: user.id, raw: user_reply)
           end
         end
       end
@@ -118,12 +108,10 @@ module HsAi
     ]
 
     # Remove all defined phrases
-    phrases_to_remove.each do |pattern|
-      text = text.gsub(pattern, "")
-    end
+    phrases_to_remove.each { |pattern| text = text.gsub(pattern, "") }
 
     # Remove HTTP links
-    text = text.gsub(/https?:\/\/\S+|www\.\S+/, " ")
+    text = text.gsub(%r{https?://\S+|www\.\S+}, " ")
     text = text.gsub(/\s+/, " ")
     test = text&.strip
     text
