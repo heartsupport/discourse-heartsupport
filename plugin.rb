@@ -37,10 +37,10 @@ after_initialize do
     after_destroy { HeartSupport::Tags.delete_topic_tags(self) }
   end
 
-  # after topic is created, add listening tag if platform topic
-  ::Topic.class_eval do
-    after_create { HeartSupport::Tags.tag_platform_topic(self) }
-  end
+  # # after topic is created, add listening tag if platform topic
+  # ::Topic.class_eval do
+  #   after_create { HeartSupport::Tags.tag_platform_topic(self) }
+  # end
 
   ::Post.class_eval do
     after_create do
