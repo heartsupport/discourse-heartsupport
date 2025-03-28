@@ -373,6 +373,36 @@ module HeartSupport
       )
     end
 
+    def self.check_sentiment(post)
+      #  this method will send the post id to porter to check the sentiment
+      #  if the sentiment is positive, we shall add a user answered yes tag
+      post_id = post.id
+
+      if Support::SUPPORT_CATEGORIES.include?(post.topic.category_id) &&
+           post.post_number != 1
+        url = "https://porter.heartsupport.com/api/sentiment?post_id=#{post_id}"
+        uri = URI(url)
+        # make a get request to the url
+        response = Net::HTTP.get_response(uri)
+        status = response.code
+        body = response.body
+
+        if (status == 200 || status == "200") && body.present?
+          body = JSON.parse(body)
+          score = body.fetch("score", nil)&.to_f
+
+          if score
+            if score > 0.25
+              # resolve tags
+              HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-Yes")
+            elsif score < -0.25
+              HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-No")
+            end
+          end
+        end
+      end
+    end
+
     def self.send_discourse_webhook(
       topic_id,
       supported,

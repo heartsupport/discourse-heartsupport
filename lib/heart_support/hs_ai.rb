@@ -49,11 +49,15 @@ module HsAi
 
           # post a reply to the topic
           user = User.find_by(id: 13_733)
+          auto_reply_tag = Tag.find_or_create_by(name: "Auto-Reply")
 
           if user
             post_params = { topic_id: topic.id, raw: user_reply }
             PostCreator.create(user, post_params)
             # Post.create!(topic_id: topic.id, user_id: user.id, raw: user_reply)
+            # Add the auto-reply tag to the topic
+            topic.tags << auto_reply_tag
+            topic.save!
           end
         end
       end
@@ -113,7 +117,7 @@ module HsAi
     # Remove HTTP links
     text = text.gsub(%r{https?://\S+|www\.\S+}, " ")
     text = text.gsub(/\s+/, " ")
-    test = text&.strip
+    text = text&.strip
     text
   end
 end

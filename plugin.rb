@@ -47,6 +47,7 @@ after_initialize do
       HeartSupport::Support.process_post(self)
       HeartSupport::Support.check_response(self)
       HeartSupport::Support.update_tags(self)
+      HeartSupport::Support.check_sentiment(self)
     end
   end
 

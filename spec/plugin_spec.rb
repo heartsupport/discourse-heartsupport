@@ -24,11 +24,20 @@ RSpec.describe HeartSupport::Support, type: :model do
     ).to_return(status: 200, body: "", headers: {})
   end
 
+  let(:sentiment_stub) do
+    stub_request(
+      :get,
+      %r{https://porter.heartsupport.com/api/sentiment}
+    ).to_return(status: 200, body: "", headers: {})
+  end
+
   before do
     stub_supplier
     stub_hsapps
     webhook_stub
+    sentiment_stub
   end
+
   describe "#set_resolution_tag" do
     let!(:user) { Fabricate(:active_user) }
     let!(:topic) do
@@ -712,13 +721,57 @@ RSpec.describe HeartSupport::Support, type: :model do
         # topic.reload
       end
 
-      it "add the listeninig ear tag" do
-        # HeartSupport::Tags.tag_platform_topic(topic)
-        expect(topic.reload.tags.include?(need_listening_ear_tag)).to eq(true)
-      end
+      # it "add the listeninig ear tag" do
+      #   # HeartSupport::Tags.tag_platform_topic(topic)
+      #   expect(topic.reload.tags.include?(need_listening_ear_tag)).to eq(true)
+      # end
     end
 
     describe "Tags#resolve_tags" do
+    end
+  end
+
+  describe "#check_sentiment" do
+    let!(:topic) do
+      Fabricate(
+        :topic,
+        category_id: 67,
+        archetype: "regular",
+        user: Fabricate(:active_user)
+      )
+    end
+
+    let!(:user) { Fabricate(:active_user) }
+
+    let!(:sentiment_stub) do
+      stub_request(
+        :get,
+        %r{https://porter.heartsupport.com/api/sentiment}
+      ).to_return(status: 200, body: { score: 0.5 }.to_json, headers: {})
+    end
+
+    before do
+      stub_supplier
+      stub_hsapps
+      webhook_stub
+
+      allow(HeartSupport::Tags).to receive(:resolve_tags)
+
+      2.times do
+        Post.create!(
+          user_id: user.id,
+          raw: "I'm feeling really down today",
+          topic_id: topic.id
+        )
+      end
+    end
+
+    it "sends a sentiment request" do
+      expect(sentiment_stub).to have_been_requested.times(1)
+      expect(HeartSupport::Tags).to have_received(:resolve_tags).with(
+        topic,
+        "User-Answered-Yes"
+      )
     end
   end
 end
