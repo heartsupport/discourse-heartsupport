@@ -394,9 +394,11 @@ module HeartSupport
           if score
             if score > 0.25
               # resolve tags
-              HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-Yes")
+              HeartSupport.set_resolution_tag(post.topic, "User-Answered-Yes")
+              # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-Yes")
             elsif score < -0.25
-              HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-No")
+              HeartSupport.set_resolution_tag(post.topic, "User-Answered-No")
+              # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-No")
             end
           end
         end
@@ -551,7 +553,9 @@ module HeartSupport
     def self.resolve_tags(topic, tag_name)
       forum_tag =
         HeartSupport::RESOLUTION_HIERARCHY.find { |tag| tag[:tag] == tag_name }
+
       priority = forum_tag[:priority]
+
       lower_priority_tags =
         HeartSupport::RESOLUTION_HIERARCHY.select do |tag|
           tag[:priority] < priority
@@ -559,9 +563,7 @@ module HeartSupport
 
       lower_priority_tags.each do |tag|
         the_tag = Tag.find_by(name: tag[:tag])
-        if topic.tags.include?(the_tag)
-          topic.tags.delete(Tag.find_by(name: tag[:tag]))
-        end
+        topic.tags.delete(the_tag) if topic.tags.include?(the_tag)
         topic.save
       end
 
@@ -570,7 +572,9 @@ module HeartSupport
         HeartSupport::RESOLUTION_HIERARCHY.select do |tag|
           tag[:priority] > priority
         end
+
       higher_priority_tag_names = higher_priority_tags.map { |tag| tag[:tag] }
+
       unless topic.tags.where(name: higher_priority_tag_names).present?
         new_tag = Tag.find_or_create_by(name: tag_name)
         if topic.tags.exclude?(new_tag)
