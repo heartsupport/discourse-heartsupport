@@ -374,15 +374,15 @@ module HeartSupport
     end
 
     def self.check_sentiment(post)
-      affirmation_texts = [
-        "thank you",
-        "thanks",
-        "thank you so much",
-        "thank you for your support",
-        "appreciate it",
-        "appreciate your support",
-        "appreciate"
-      ]
+      # affirmation_texts = [
+      #   "thank you",
+      #   "thanks",
+      #   "thank you so much",
+      #   "thank you for your support",
+      #   "appreciate it",
+      #   "appreciate your support",
+      #   "appreciate"
+      # ]
       #  this method will send the post id to porter to check the sentiment
       #  if the sentiment is positive, we shall add a user answered yes tag
       post_id = post.id
@@ -406,15 +406,8 @@ module HeartSupport
               HeartSupport.set_resolution_tag(post.topic, "User-Answered-Yes")
               # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-Yes")
             elsif score < -0.25
-              if affirmation_texts.any? { |text|
-                   post.raw.downcase.include?(text)
-                 }
-                # mark as user answered yes
-                HeartSupport.set_resolution_tag(post.topic, "User-Answered-Yes")
-              else
-                HeartSupport.set_resolution_tag(post.topic, "User-Answered-No")
-                # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-No")
-              end
+              HeartSupport.set_resolution_tag(post.topic, "User-Answered-No")
+              # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-No")
             end
           end
         end
