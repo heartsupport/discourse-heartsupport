@@ -318,12 +318,24 @@ module HeartSupport
 
             # if repler is a SWAT member and the second then set trained replier tag too
             if user.primary_group_id == 54 || user.primary_group_id == 76
+              # trained_repliers =
+              #   topic
+              #     .posts
+              #     .joins(:user)
+              #     .where(users: { primary_group_id: [54, 76] })
+              #     .count]
+              query_sql = <<~SQL
+                SELECT COUNT(DISTINCT users.id) AS count
+                FROM users
+                JOIN posts ON posts.user_id = users.id
+                JOIN topics ON posts.topic_id = topics.id
+                WHERE users.primary_group_id IN (54, 76)
+                AND posts.deleted_at IS NULL
+                AND posts.user_id != #{topic.user_id}
+                AND posts.topic_id = #{topic.id}
+              SQL
               trained_repliers =
-                topic
-                  .posts
-                  .joins(:user)
-                  .where(users: { primary_group_id: [54, 76] })
-                  .count
+                ActiveRecord::Base.connection.execute(query_sql).first["count"]
               if trained_repliers >= 2
                 # set the trained replier tag
                 HeartSupport.set_resolution_tag(topic, "Trained-Reply")
