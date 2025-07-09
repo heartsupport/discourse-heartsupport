@@ -317,4 +317,37 @@ after_initialize do
       end
     end
   end
+
+  #  add a job to check sentiment of posts
+  class ::Jobs::CheckSentimentJob < Jobs::Base
+    def execute(args)
+      post_id = args[:post_id]
+
+      if Support::SUPPORT_CATEGORIES.include?(post.topic.category_id) &&
+           post.post_number != 1
+        url = "https://porter.heartsupport.com/api/sentiment?post_id=#{post_id}"
+        uri = URI(url)
+        # make a get request to the url
+        response = Net::HTTP.get_response(uri)
+        status = response.code
+        body = response.body
+
+        if (status == 200 || status == "200") && body.present?
+          body = JSON.parse(body)
+          score = body.fetch("score", nil)&.to_f
+
+          if score
+            if score > 0.25
+              # resolve tags
+              HeartSupport.set_resolution_tag(post.topic, "User-Answered-Yes")
+              # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-Yes")
+            elsif score < -0.25
+              HeartSupport.set_resolution_tag(post.topic, "User-Answered-No")
+              # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-No")
+            end
+          end
+        end
+      end
+    end
+  end
 end

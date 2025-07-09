@@ -756,21 +756,50 @@ RSpec.describe HeartSupport::Support, type: :model do
       webhook_stub
 
       allow(HeartSupport).to receive(:set_resolution_tag)
+      allow(Jobs).to receive(:enqueue_in)
 
-      2.times do
+      # post1 =
+      #   Post.create!(
+      #     user_id: user.id,
+      #     raw: "I'm feeling really down today",
+      #     topic_id: topic.id
+      #   )
+
+      # post2 =
+      #   Post.create!(
+      #     user_id: user.id,
+      #     raw: "I'm feeling really down today",
+      #     topic_id: topic.id
+      #   )
+
+      # 2.times do
+      #   Post.create!(
+      #     user_id: user.id,
+      #     raw: "I'm feeling really down today",
+      #     topic_id: topic.id
+      #   )
+      # end
+    end
+
+    it "sends a sentiment request" do
+      post1 =
         Post.create!(
           user_id: user.id,
           raw: "I'm feeling really down today",
           topic_id: topic.id
         )
-      end
-    end
 
-    it "sends a sentiment request" do
-      expect(sentiment_stub).to have_been_requested.times(1)
-      expect(HeartSupport).to have_received(:set_resolution_tag).with(
-        topic,
-        "User-Answered-Yes"
+      # post2 =
+      #   Post.create!(
+      #     user_id: user.id,
+      #     raw: "I'm feeling really down today",
+      #     topic_id: topic.id
+      #   )
+
+      expect(Jobs).to have_received(:enqueue_in).with(
+        10.minutes,
+        :check_sentiment_job,
+        post_id: post1.id
       )
     end
   end
