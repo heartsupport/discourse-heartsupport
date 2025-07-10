@@ -387,7 +387,7 @@ module HeartSupport
 
     def self.check_sentiment(post)
       #  call the job to run it in 10 mins
-      Jobs.enqueue_in(10.minutes, :check_sentiment_job, post_id: post.id)
+      ::Jobs.enqueue_in(10.minutes, :check_sentiment_job, post_id: post.id)
       Rails.logger.info("CheckSentimentJob scheduled for post #{post.id}")
     end
 
