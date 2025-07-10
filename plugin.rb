@@ -321,7 +321,10 @@ after_initialize do
   #  add a job to check sentiment of posts
   class ::Jobs::CheckSentimentJob < Jobs::Base
     def execute(args)
-      post_id = args[:post_id]
+      post_id = args[:post_id]&.to_i
+
+      post = Post.find_by(id: post_id)
+      return unless post
 
       if HeartSupport::Support::SUPPORT_CATEGORIES.include?(
            post.topic.category_id
