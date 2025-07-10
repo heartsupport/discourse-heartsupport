@@ -323,8 +323,9 @@ after_initialize do
     def execute(args)
       post_id = args[:post_id]
 
-      if Support::SUPPORT_CATEGORIES.include?(post.topic.category_id) &&
-           post.post_number != 1
+      if HeartSupport::Support::SUPPORT_CATEGORIES.include?(
+           post.topic.category_id
+         ) && post.post_number != 1
         url = "https://porter.heartsupport.com/api/sentiment?post_id=#{post_id}"
         uri = URI(url)
         # make a get request to the url
