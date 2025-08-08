@@ -79,7 +79,7 @@ module HeartSupport
   end
 
   module Support
-    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106]
+    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106, 142]
     ASK_CATEGORIES = [67, 89]
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300

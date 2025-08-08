@@ -55,7 +55,7 @@ after_initialize do
   class ::Jobs::RemoveSupportTagJob < Jobs::Scheduled
     SUPPORT_LIMIT = 500
     ASK_USER_LIMIT = 300
-    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106]
+    SUPPORT_CATEGORIES = [67, 77, 85, 87, 88, 89, 102, 106, 142]
 
     every 1.day
 
