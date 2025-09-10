@@ -345,8 +345,8 @@ after_initialize do
               # resolve tags
               HeartSupport.set_resolution_tag(post.topic, "User-Answered-Yes")
               # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-Yes")
-            elsif score < -0.25
-              HeartSupport.set_resolution_tag(post.topic, "User-Answered-No")
+              # elsif score < -0.25
+              # HeartSupport.set_resolution_tag(post.topic, "User-Answered-No")
               # HeartSupport::Tags.resolve_tags(post.topic, "User-Answered-No")
             end
           end

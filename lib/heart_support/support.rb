@@ -143,7 +143,7 @@ module HeartSupport
             HeartSupport.remove_topic_tags(ref_topic, "Asked-User")
 
             # add resolution tag as user answered no
-            HeartSupport.set_resolution_tag(ref_topic, "User-Answered-No")
+            # HeartSupport.set_resolution_tag(ref_topic, "User-Answered-No")
 
             ref_topic.custom_fields["staff_escalation"] = true
             ref_topic.save!
